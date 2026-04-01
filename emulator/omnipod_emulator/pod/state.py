@@ -1,0 +1,338 @@
+"""
+Simulated Omnipod 5 pod state.
+
+Tracks all mutable pod state: reservoir level, activation status, delivery
+programs, alerts, and firmware metadata.  This is the single source of truth
+that the protocol handlers read from and write to.
+
+Reference: OMNIPOD5_CONNECTION_PROTOCOL.md, Section 6 (Activation states)
+"""
+
+from __future__ import annotations
+
+import logging
+import math
+import random
+import struct
+import time
+from dataclasses import dataclass, field
+from enum import IntEnum
+
+logger = logging.getLogger(__name__)
+
+
+class RunningState(IntEnum):
+    """Pod running states during the activation and delivery lifecycle."""
+
+    IDLE = 0
+    PRIMING = 7
+    CLUTCH_DRIVE_ENGAGED = 5
+    RUNNING_ABOVE_MIN_VOLUME = 8
+    ACTIVE = 9
+
+
+class AlertType(IntEnum):
+    """Pod alert types."""
+
+    LOW_RESERVOIR = 1
+    EXPIRATION = 2
+    OCCLUSION = 3
+    AUTO_OFF = 4
+    LOSS_OF_COMMUNICATION = 5
+
+
+@dataclass
+class PodState:
+    """
+    Complete mutable state of a simulated Omnipod 5 pod.
+
+    All fields have safe defaults representing an unactivated pod with a
+    full reservoir.
+
+    Attributes:
+        firmware_version:     Firmware version string (e.g. "3.1.6").
+        lot_number:           Manufacturing lot number.
+        reservoir_units:      Insulin remaining in the reservoir (units).
+        activated:            True after the full activation sequence.
+        primed:               True after priming.
+        cannula_inserted:     True after cannula insertion.
+        deactivated:          True after explicit deactivation.
+        basal_rate:           Current basal rate (units/hour).
+        basal_program_raw:    Raw basal program bytes from the phone.
+        bolus_in_progress:    True while a bolus is being delivered.
+        bolus_remaining_units: Remaining bolus amount (units).
+        temp_basal_active:    True if a temporary basal is running.
+        temp_basal_rate:      Temporary basal rate (units/hour).
+        alerts:               Currently active alerts.
+        unique_id:            Pod unique ID assigned during activation.
+        activation_time:      Epoch timestamp when the pod was activated.
+        total_insulin_delivered: Cumulative insulin delivered (units).
+        prime_start_time:       Epoch when priming started (0 = not started).
+        prime_duration:         Simulated priming duration in seconds.
+    """
+
+    firmware_version: str = "3.1.6"
+    lot_number: str = "L00001"
+    reservoir_units: float = 200.0
+    activated: bool = False
+    primed: bool = False
+    cannula_inserted: bool = False
+    deactivated: bool = False
+    prime_start_time: float = 0.0
+    prime_duration: float = 10.0
+    basal_rate: float = 1.0
+    basal_program_raw: bytes = b""
+    bolus_in_progress: bool = False
+    bolus_remaining_units: float = 0.0
+    bolus_total_units: float = 0.0
+    temp_basal_active: bool = False
+    temp_basal_rate: float = 0.0
+    alerts: list[AlertType] = field(default_factory=list)
+    unique_id: bytes = b"\x00\x00\x00\x00"
+    activation_time: float = 0.0
+    total_insulin_delivered: float = 0.0
+
+    # Glucose simulation (CGM proxy — real pods relay Dexcom data)
+    glucose_mg_dl: int = 120
+    glucose_trend: int = 0  # -2=FALLING_QUICKLY, -1=FALLING, 0=STEADY, 1=RISING, 2=RISING_QUICKLY
+    _prev_glucose: int = 120
+    _last_tick: float = 0.0
+
+    # IOB tracking
+    iob_units: float = 0.0
+
+    @property
+    def firmware_version_tuple(self) -> tuple[int, int, int]:
+        """Parse firmware version string into (major, minor, patch)."""
+        parts = self.firmware_version.split(".")
+        if len(parts) != 3:
+            return (0, 0, 0)
+        try:
+            return (int(parts[0]), int(parts[1]), int(parts[2]))
+        except ValueError:
+            return (0, 0, 0)
+
+    @property
+    def running_state(self) -> RunningState:
+        """Current pod running state based on activation progress."""
+        if self.deactivated:
+            return RunningState.IDLE
+        if self.activated:
+            return RunningState.ACTIVE
+        if self.prime_start_time > 0:
+            elapsed = time.time() - self.prime_start_time
+            if elapsed >= self.prime_duration:
+                self.primed = True
+                return RunningState.RUNNING_ABOVE_MIN_VOLUME
+            return RunningState.PRIMING
+        return RunningState.IDLE
+
+    @property
+    def minutes_since_activation(self) -> int:
+        """Minutes elapsed since activation, or 0 if not activated."""
+        if not self.activated or self.activation_time == 0.0:
+            return 0
+        elapsed = time.time() - self.activation_time
+        return max(0, int(elapsed / 60))
+
+    @property
+    def pod_expiry_hours_remaining(self) -> float:
+        """Hours remaining until the 72-hour pod expiry."""
+        if not self.activated:
+            return 72.0
+        elapsed_hours = self.minutes_since_activation / 60.0
+        return max(0.0, 72.0 - elapsed_hours)
+
+    def tick(self) -> None:
+        """
+        Advance the simulation by one time step.
+
+        Called before each encode_status() to evolve glucose, IOB, and
+        reservoir values over time. Uses wall-clock time so values change
+        at a realistic pace regardless of polling frequency.
+        """
+        now = time.time()
+        if self._last_tick == 0.0:
+            self._last_tick = now
+            return
+
+        elapsed = now - self._last_tick
+        if elapsed < 1.0:
+            return  # Avoid sub-second noise
+        self._last_tick = now
+
+        # -- Glucose: bounded random walk --
+        # Drift toward 120 mg/dL (mean reversion) + random noise
+        mean_reversion = (120 - self.glucose_mg_dl) * 0.002 * elapsed
+        noise = random.gauss(0, 1.5 * math.sqrt(elapsed / 5.0))
+        delta = mean_reversion + noise
+        self._prev_glucose = self.glucose_mg_dl
+        self.glucose_mg_dl = max(40, min(400, int(self.glucose_mg_dl + delta)))
+
+        # Trend from delta (per 5-minute equivalent)
+        rate = (self.glucose_mg_dl - self._prev_glucose) / max(elapsed / 300.0, 0.1)
+        if rate > 10:
+            self.glucose_trend = 2
+        elif rate > 3:
+            self.glucose_trend = 1
+        elif rate < -10:
+            self.glucose_trend = -2
+        elif rate < -3:
+            self.glucose_trend = -1
+        else:
+            self.glucose_trend = 0
+
+        if not self.activated:
+            return
+
+        # -- Basal delivery & reservoir depletion --
+        hours = elapsed / 3600.0
+        basal_delivered = self.basal_rate * hours
+        if basal_delivered > 0:
+            self.deliver_insulin(min(basal_delivered, self.reservoir_units))
+
+        # -- Bolus: progressive delivery (~0.05U per 3s) --
+        if self.bolus_in_progress and self.bolus_remaining_units > 0:
+            pulses_this_tick = elapsed / 3.0  # ~1 pulse per 3 seconds
+            bolus_delivered = min(
+                pulses_this_tick * 0.05,
+                self.bolus_remaining_units,
+            )
+            if bolus_delivered > 0:
+                self.deliver_insulin(min(bolus_delivered, self.reservoir_units))
+                self.iob_units += bolus_delivered
+                self.bolus_remaining_units -= bolus_delivered
+                if self.bolus_remaining_units <= 0.001:
+                    self.bolus_remaining_units = 0.0
+                    self.bolus_in_progress = False
+                    logger.info("Bolus delivery complete: %.2fU total", self.bolus_total_units)
+
+        # -- IOB: accumulate from basal + decay --
+        self.iob_units += basal_delivered
+        # Exponential decay: half-life ~90 min
+        decay = math.exp(-0.693 * elapsed / (90.0 * 60.0))
+        self.iob_units *= decay
+        if self.iob_units < 0.01:
+            self.iob_units = 0.0
+
+    def encode_status(self) -> bytes:
+        """
+        Encode pod status into a binary payload for GET_STATUS responses.
+
+        The format is a simplified representation.  The real protocol uses
+        more fields; this covers the essentials.
+
+        Returns:
+            Encoded status bytes.
+        """
+        # Flags byte
+        flags = 0
+        if self.activated:
+            flags |= 0x01
+        if self.primed:
+            flags |= 0x02
+        if self.cannula_inserted:
+            flags |= 0x04
+        if self.bolus_in_progress:
+            flags |= 0x08
+        if self.temp_basal_active:
+            flags |= 0x10
+        if self.deactivated:
+            flags |= 0x20
+
+        # Alert bitmask (8 bits, one per alert type)
+        alert_mask = 0
+        for alert in self.alerts:
+            if alert.value < 8:
+                alert_mask |= 1 << alert.value
+
+        # Reservoir in pulses (1 pulse = 0.05 units)
+        reservoir_pulses = int(self.reservoir_units / 0.05)
+
+        # Minutes since activation
+        minutes = self.minutes_since_activation
+
+        # Bolus remaining in pulses
+        bolus_pulses = int(self.bolus_remaining_units / 0.05)
+
+        # Bolus total in pulses (for computing delivered = total - remaining)
+        bolus_total_pulses = int(self.bolus_total_units / 0.05)
+
+        # Total insulin delivered in pulses
+        total_pulses = int(self.total_insulin_delivered / 0.05)
+
+        running = self.running_state
+        iob_hundredths = int(self.iob_units * 100)
+
+        payload = struct.pack(
+            ">BBBI4sHHHHbHH",
+            flags,
+            alert_mask,
+            running,
+            reservoir_pulses,
+            self.unique_id[:4],
+            minutes,
+            bolus_pulses,
+            total_pulses,
+            self.glucose_mg_dl,
+            self.glucose_trend,
+            iob_hundredths,
+            bolus_total_pulses,
+        )
+
+        logger.debug(
+            "Status encoded: flags=0x%02x, running=%s, reservoir=%.1fU, "
+            "glucose=%d mg/dL, iob=%.2fU, minutes=%d",
+            flags,
+            RunningState(running).name,
+            self.reservoir_units,
+            self.glucose_mg_dl,
+            self.iob_units,
+            minutes,
+        )
+
+        return payload
+
+    def activate(self) -> None:
+        """Mark the pod as fully activated."""
+        self.activated = True
+        self.activation_time = time.time()
+        logger.info("Pod activated at %f", self.activation_time)
+
+    def deliver_insulin(self, units: float) -> bool:
+        """
+        Simulate delivering *units* of insulin from the reservoir.
+
+        Args:
+            units: Amount to deliver.
+
+        Returns:
+            True if the delivery succeeded, False if insufficient insulin.
+        """
+        if units < 0:
+            raise ValueError(f"Cannot deliver negative insulin: {units}")
+
+        if units > self.reservoir_units:
+            logger.warning(
+                "Insufficient reservoir: requested %.2f, available %.2f",
+                units,
+                self.reservoir_units,
+            )
+            return False
+
+        self.reservoir_units -= units
+        self.total_insulin_delivered += units
+
+        logger.info(
+            "Delivered %.2fU insulin, reservoir=%.1fU, total=%.1fU",
+            units,
+            self.reservoir_units,
+            self.total_insulin_delivered,
+        )
+
+        # Check for low reservoir alert
+        if self.reservoir_units <= 10.0 and AlertType.LOW_RESERVOIR not in self.alerts:
+            self.alerts.append(AlertType.LOW_RESERVOIR)
+            logger.warning("LOW_RESERVOIR alert triggered (%.1fU remaining)", self.reservoir_units)
+
+        return True

@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(source .venv/bin/activate)",
+      "Bash(python -m pytest tests/ -v)",
+      "Bash(timeout 3 python run.py --mode tcp)",
+      "Bash(./gradlew :feature:pairing:compileDebugKotlin)",
+      "Bash(./gradlew assembleDebug)",
+      "Bash(./gradlew :app:compileDebugKotlin)",
+      "Bash(docker:*)",
+      "Bash(./gradlew :core:crypto:testDebugUnitTest)",
+      "Bash(./gradlew *)",
+      "Bash(find :*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}

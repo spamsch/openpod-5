@@ -1,0 +1,39 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.DS_Store
+
+# Local properties
+local.properties
+
+# Signing
+*.jks
+*.keystore
+signing.properties
+
+# Secrets
+*.env
+credentials.json
+
+# Native
+native_libs/
+*.so
+
+# Python
+.venv/
+__pycache__/
+*.egg-info/
+
+# Misc
+captures/
+.externalNativeBuild/
+.cxx/
+output.json
+.kotlin/
