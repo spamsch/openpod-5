@@ -2,8 +2,9 @@
 <resources>
     <!-- Welcome Screen -->
     <string name="onboarding_welcome_app_name">OpenPod</string>
-    <string name="onboarding_welcome_tagline">Dein Pod. Deine Kontrolle.</string>
-    <string name="onboarding_welcome_description">Ein Open-Source-Controller f\u00fcr Omnipod 5 Insulinpods. Verwalte deine Basalprogramme, gib Boli ab und \u00fcberwache deinen Pod \u2014 alles von deinem Handy aus.</string>
+    <string name="onboarding_welcome_tagline">Open-Source-Pod-Forschung</string>
+    <string name="onboarding_welcome_description">Ein unabh\u00e4ngiges Forschungs- und Interoperabilit\u00e4tsprojekt f\u00fcr Omnipod 5 Insulinpods. Diese Software ist nicht f\u00fcr den medizinischen Einsatz zugelassen.</string>
+    <string name="onboarding_welcome_research_warning">WARNUNG: Diese Software ist nicht von der FDA oder einer anderen Zulassungsbeh\u00f6rde genehmigt. Sie wird weder von Insulet Corporation noch von Dexcom unterst\u00fctzt oder ist mit diesen verbunden. Verwenden Sie diese Software nicht zur Insulinabgabe an eine Person. Nur f\u00fcr Forschung und Interoperabilit\u00e4tsstudien.</string>
     <string name="onboarding_welcome_get_started">Los geht\'s</string>
     <string name="onboarding_welcome_get_started_a11y">Los geht\'s. OpenPod einrichten.</string>
 
