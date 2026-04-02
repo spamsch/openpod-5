@@ -56,6 +56,24 @@ The PDM app scans for any of these to discover pods that are ready to pair.
 DEFAULT_UNPAIRED_SCAN_UUID = UNPAIRED_SCAN_UUIDS[0]
 """Default UUID used in advertising for a new unpaired pod."""
 
+
+def paired_scan_uuids(ctrl_id: bytes) -> list[str]:
+    """
+    Derive paired advertising UUIDs from a controller ID.
+
+    After pairing, real pods switch from unpaired UUIDs (``...fffffffe0x``)
+    to controller-specific UUIDs (``...{CTRL_ID}0x``).
+
+    Args:
+        ctrl_id: 4-byte controller ID.
+
+    Returns:
+        List of 4 UUID strings for paired advertising.
+    """
+    base = "ce1f923d-c539-48ea-7300-0a"
+    hex_id = ctrl_id.hex()
+    return [f"{base}{hex_id}{i:02x}" for i in range(4)]
+
 # ---------------------------------------------------------------------------
 # Advertising parameters
 # ---------------------------------------------------------------------------
@@ -63,28 +81,28 @@ DEFAULT_UNPAIRED_SCAN_UUID = UNPAIRED_SCAN_UUIDS[0]
 ADVERTISING_INTERVAL_MS = 100
 """Advertising interval in milliseconds (fast advertising for discovery)."""
 
-DEVICE_NAME = "TWI_Pod"
-"""BLE device name advertised by the pod."""
+DEVICE_NAME = "Openpod_Emu"
+"""BLE device name advertised by the pod emulator."""
 
 # ---------------------------------------------------------------------------
 # Connection parameters
 # ---------------------------------------------------------------------------
 
-MTU_SIZE = 185
+MTU_SIZE = 251
 """
-Default ATT MTU size.
-The Omnipod 5 protocol uses chunked envelopes, so this determines the
-maximum single-write payload before chunking is required.
+ATT MTU size.
+The phone requests an MTU of 251 bytes per the documented protocol.
 """
 
 # ---------------------------------------------------------------------------
 # Envelope / chunking constants
 # ---------------------------------------------------------------------------
 
-MAX_CHUNK_SIZE = 160
+MAX_CHUNK_SIZE = 244
 """
 Maximum payload bytes per BLE write.
-Envelope framing adds overhead, so actual user data per chunk is smaller.
+With MTU 251, the usable ATT payload is 251 - 3 (ATT header) = 248.
+Leave 4 bytes for envelope overhead, giving 244 usable bytes.
 """
 
 ENVELOPE_HEADER_SIZE = 16

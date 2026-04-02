@@ -72,7 +72,8 @@ class PodState:
     """
 
     firmware_version: str = "3.1.6"
-    lot_number: str = "L00001"
+    lot_number: str = "L05082541"
+    sequence_number: int = 770785
     reservoir_units: float = 200.0
     activated: bool = False
     primed: bool = False
@@ -292,6 +293,100 @@ class PodState:
         )
 
         return payload
+
+    def encode_aid_status_g11(self) -> bytes:
+        """
+        Encode AID Pod Status for G11.3 response.
+
+        Returns a 28-byte binary payload matching the documented format:
+            [EGV:2][EGV_time:4][TDI:2][CGM_tx_time:4][EGV_rate:1]
+            [algo_loop:1][IOB:4][pod_ts:4][QN_status:1][CGM_algo:1]
+            [CGM_tx_status:1][tx_lifetime:2][QN_state:1]
+        """
+        egv = self.glucose_mg_dl
+        egv_time = self.minutes_since_activation * 60  # seconds
+        tdi = int(self.total_insulin_delivered / 0.05)  # pulses
+        cgm_tx_time = egv_time  # same as EGV time for emulator
+        egv_rate = max(-128, min(127, self.glucose_trend * 5))  # scaled trend
+        algo_loop = 1 if self.activated else 0
+        iob = int(self.iob_units * 10000)  # 0.0001 U resolution
+        pod_ts = egv_time
+        qn_status = 0  # normal
+        cgm_algo = 1 if self.activated else 0
+        cgm_tx_status = 1 if self.activated else 0
+        tx_lifetime = 0  # not tracked
+        qn_state = 0  # normal
+
+        payload = struct.pack(
+            ">HI H I b B I I B B B H B",
+            egv,          # EGV (2)
+            egv_time,     # EGV_time (4)
+            tdi,          # TDI (2)
+            cgm_tx_time,  # CGM_tx_time (4)
+            egv_rate,     # EGV_rate (1)
+            algo_loop,    # algo_loop (1)
+            iob,          # IOB (4)
+            pod_ts,       # pod_ts (4)
+            qn_status,    # QN_status (1)
+            cgm_algo,     # CGM_algo (1)
+            cgm_tx_status,  # CGM_tx_status (1)
+            tx_lifetime,  # tx_lifetime (2)
+            qn_state,     # QN_state (1)
+        )
+
+        logger.debug(
+            "AID status G11.3 encoded: egv=%d, iob=%.2fU, algo=%d",
+            egv, self.iob_units, algo_loop,
+        )
+
+        return payload
+
+    def encode_aid_status_g12(self) -> bytes:
+        """
+        Encode Unified AID Pod Status for G12.3 response.
+
+        Variable-length payload: base G11.3 data prefixed with CGM type byte,
+        followed by CGM-type-specific tail data.
+
+        Dexcom G7 (type 7) appends 16 bytes of CGM data.
+        """
+        cgm_type = 7  # DEXCOM_G7
+        base = self.encode_aid_status_g11()
+        # Dexcom G7 tail: 16 bytes of CGM-specific data (stub zeros)
+        g7_tail = bytes(16)
+        return bytes([cgm_type]) + base + g7_tail
+
+    def reset(self) -> None:
+        """
+        Reset the pod to a fresh unactivated state.
+
+        Called after deactivation so the emulator can simulate a new pod
+        without restarting the process. Preserves firmware_version and
+        lot_number (identity), resets everything else to defaults.
+        """
+        self.reservoir_units = 200.0
+        self.activated = False
+        self.primed = False
+        self.cannula_inserted = False
+        self.deactivated = False
+        self.prime_start_time = 0.0
+        self.basal_rate = 1.0
+        self.basal_program_raw = b""
+        self.bolus_in_progress = False
+        self.bolus_remaining_units = 0.0
+        self.bolus_total_units = 0.0
+        self.temp_basal_active = False
+        self.temp_basal_rate = 0.0
+        self.alerts = []
+        self.unique_id = b"\x00\x00\x00\x00"
+        self.activation_time = 0.0
+        self.total_insulin_delivered = 0.0
+        self.glucose_mg_dl = 120
+        self.glucose_trend = 0
+        self._prev_glucose = 120
+        self._last_tick = 0.0
+        self.iob_units = 0.0
+        logger.info("Pod state reset to factory defaults")
 
     def activate(self) -> None:
         """Mark the pod as fully activated."""

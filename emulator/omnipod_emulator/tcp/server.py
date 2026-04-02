@@ -99,10 +99,11 @@ class TcpProtocolServer:
                 payload = await reader.readexactly(length)
 
                 logger.info(
-                    "TCP frame received: %d bytes from %s",
+                    "[TCP] RX: %d bytes from %s",
                     length,
                     peer,
                 )
+                logger.debug("[TCP] RX hex: %s", payload.hex())
 
                 # Process through the protocol session
                 response = self._session.on_message(payload)
@@ -113,8 +114,9 @@ class TcpProtocolServer:
                     writer.write(resp_header + response)
                     await writer.drain()
 
+                    logger.debug("[TCP] TX hex: %s", response.hex())
                     logger.info(
-                        "TCP frame sent: %d bytes to %s",
+                        "[TCP] TX: %d bytes to %s",
                         len(response),
                         peer,
                     )

@@ -7,6 +7,7 @@ GRADLE     := ./gradlew
 ADB        := adb
 EMULATOR   := emulator/run.py
 VENV       := emulator/.venv/bin/activate
+PYTHON	   := python3
 
 .PHONY: help install install-emu run reset clear test test-emu build \
         emulator emulator-seed lint
@@ -43,13 +44,13 @@ reinstall: install-emu reset ## Install emulator build, reset, and launch
 # ── Emulator (Python) ──────────────────────────────────────────────
 
 emulator: ## Start the pod emulator (TCP mode)
-	cd emulator && source $(VENV) && python $(EMULATOR) --mode tcp
+	source $(VENV) && $(PYTHON) $(EMULATOR) --mode tcp
 
 emulator-seed: ## Start the pod emulator (deterministic)
-	cd emulator && source $(VENV) && python $(EMULATOR) --mode tcp --seed 42
+	source $(VENV) && $(PYTHON) $(EMULATOR) --mode tcp --seed 42
 
 emulator-debug: ## Start the pod emulator with debug logging
-	cd emulator && source $(VENV) && python $(EMULATOR) --mode tcp --log-level DEBUG
+	source $(VENV) && $(PYTHON) $(EMULATOR) --mode tcp --log-level DEBUG
 
 # ── Tests ───────────────────────────────────────────────────────────
 

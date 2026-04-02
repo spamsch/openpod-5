@@ -39,6 +39,7 @@ from omnipod_emulator.ble.constants import (
     SERVICE_UUID,
     TP_CLASSIC_CHARACTERISTIC_UUID,
     TP_FAST_CHARACTERISTIC_UUID,
+    paired_scan_uuids,
 )
 
 logger = logging.getLogger(__name__)
@@ -73,6 +74,7 @@ class OmnipodBleServer:
         self._connection: Connection | None = None
         self._tp_classic_characteristic: Characteristic | None = None
         self._tp_fast_characteristic: Characteristic | None = None
+        self._paired_controller_id: bytes | None = None
 
         logger.info(
             "BLE server created: transport=%s", self._transport_name
@@ -178,16 +180,74 @@ class OmnipodBleServer:
             TP_FAST_CHARACTERISTIC_UUID,
         )
 
-    async def _start_advertising(self) -> None:
-        """Start BLE advertising with the unpaired scan UUID."""
-        assert self._device is not None
+    def set_paired_controller_id(self, ctrl_id: bytes) -> None:
+        """
+        Set the controller ID for paired advertising.
 
+        After pairing completes, call this to switch from unpaired UUIDs
+        (``...fffffffe0x``) to controller-specific UUIDs (``...{ctrl_id}0x``).
+        The next advertising restart will use the paired UUIDs.
+
+        Args:
+            ctrl_id: 4-byte controller ID.
+        """
+        self._paired_controller_id = ctrl_id
         logger.info(
-            "Starting advertising with UUID: %s",
-            DEFAULT_UNPAIRED_SCAN_UUID,
+            "Paired controller ID set: %s — will use paired UUIDs on next advertising restart",
+            ctrl_id.hex(),
         )
 
-        await self._device.start_advertising(auto_restart=True)
+    async def _start_advertising(self) -> None:
+        """Start BLE advertising with the appropriate scan UUID."""
+        assert self._device is not None
+
+        if self._paired_controller_id is not None:
+            scan_uuid = paired_scan_uuids(self._paired_controller_id)[0]
+        else:
+            scan_uuid = DEFAULT_UNPAIRED_SCAN_UUID
+
+        logger.info("Starting advertising with UUID: %s", scan_uuid)
+
+        from bumble.core import AdvertisingData  # noqa: E402
+
+        # Build manufacturer-specific data (AD Type 0xFF):
+        #   company_id (2 bytes LE) + padding (4 bytes) +
+        #   pod_id_adj_bits (1 byte, bits 4-5 = pod ID fragment) +
+        #   alarm_code (1 byte) + alert_code (1 byte)
+        company_id = (0x0000).to_bytes(2, "little")  # placeholder company ID
+        padding = bytes(4)
+        pod_id_adj = 0x00  # bits 4-5 = 0 (no adjustment)
+        alarm_code = 0x00
+        alert_code = 0x00
+        # Profile ID = 10 in UUID data to pass scan callback validation
+        mfr_data = company_id + padding + bytes([pod_id_adj, alarm_code, alert_code])
+
+        advertising_data = bytes(
+            AdvertisingData([
+                (AdvertisingData.COMPLETE_LOCAL_NAME, bytes(DEVICE_NAME, 'utf-8')),
+                (
+                    AdvertisingData.INCOMPLETE_LIST_OF_128_BIT_SERVICE_CLASS_UUIDS,
+                    bytes(BumbleUUID(scan_uuid)),
+                ),
+                (AdvertisingData.MANUFACTURER_SPECIFIC_DATA, mfr_data),
+            ])
+        )
+
+        scan_response_data = bytes(
+            AdvertisingData([
+                (AdvertisingData.COMPLETE_LOCAL_NAME, bytes(DEVICE_NAME, 'utf-8')),
+                (
+                    AdvertisingData.COMPLETE_LIST_OF_128_BIT_SERVICE_CLASS_UUIDS,
+                    bytes(BumbleUUID(SERVICE_UUID)),
+                ),
+            ])
+        )
+
+        await self._device.start_advertising(
+            auto_restart=True,
+            advertising_data=advertising_data,
+            scan_response_data=scan_response_data,
+        )
         logger.info("Advertising started")
 
     def _on_connection(self, connection: Connection) -> None:
@@ -218,10 +278,11 @@ class OmnipodBleServer:
         as a notification on TpClassic.
         """
         logger.info(
-            "CMD write received: %d bytes from %s",
+            "[BLE] GATT write to CMD: %d bytes from %s",
             len(value),
             connection.peer_address if connection else "unknown",
         )
+        logger.debug("[BLE] CMD RX: %s", value.hex())
 
         try:
             response = self._on_command(value)
@@ -230,6 +291,7 @@ class OmnipodBleServer:
             response = None
 
         if response is not None:
+            logger.debug("[BLE] CMD TX: %s", response.hex())
             asyncio.get_event_loop().create_task(
                 self._send_response(response)
             )

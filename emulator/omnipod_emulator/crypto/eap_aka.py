@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import enum
 import hashlib
+import hmac
 import logging
 from dataclasses import dataclass, field
 
@@ -88,8 +89,8 @@ class SessionKeys:
     ik: bytes = b""
     """16-byte integrity key from MILENAGE f4."""
 
-    msk: bytes = b""
-    """Master Session Key: first 16 bytes of SHA-256(CK || IK)."""
+    encryption_key: bytes = b""
+    """AES-CCM session encryption key: CK directly (per TWI SDK behaviour)."""
 
 
 @dataclass
@@ -244,21 +245,53 @@ class EapAkaSlave:
         new_sqn = int.from_bytes(sqn_bytes, "big") + 1
         self.sqn = new_sqn.to_bytes(6, "big")
 
+        # Derive K_aut per RFC 4187 Section 7 for AT_MAC verification
+        # MK = SHA-1(Identity | IK | CK), K_encr = MK[0:16], K_aut = MK[16:32]
+        identity = b""  # Empty identity (pod uses empty identity in AKA-Identity)
+        mk = hashlib.sha1(identity + ik + ck).digest()  # noqa: S324
+        k_aut = mk[16:32]
+
+        # Verify AT_MAC if present (RFC 4187 Section 10.15)
+        if AT_MAC in attrs:
+            at_mac_value = attrs[AT_MAC][:16]
+            # Reconstruct the original EAP message for MAC computation:
+            # The MAC is computed over the full EAP message with AT_MAC zeroed
+            eap_header = bytes([
+                EAP_REQUEST, identifier,
+            ])
+            aka_header = bytes([EAP_TYPE_AKA, AKA_CHALLENGE, 0, 0])
+            # Rebuild attrs with AT_MAC value zeroed
+            zeroed_attrs = _rebuild_attrs_with_zeroed_mac(attrs_data)
+            full_msg = aka_header + zeroed_attrs
+            total_len = (4 + len(full_msg)).to_bytes(2, "big")
+            mac_input = eap_header + total_len + full_msg
+
+            expected_mac = hmac.new(k_aut, mac_input, hashlib.sha256).digest()[:16]
+
+            if not hmac.compare_digest(at_mac_value, expected_mac):
+                logger.warning("AT_MAC verification failed — rejecting challenge")
+                self.state = EapAkaState.FAILED
+                return self._build_auth_reject(identifier)
+            logger.info("AT_MAC verified successfully")
+        else:
+            logger.warning("AT_MAC absent in challenge — proceeding without MAC verification")
+
         # Store session keys
         self.session_keys.ck = ck
         self.session_keys.ik = ik
 
-        # Derive MSK = first 16 bytes of SHA-256(CK || IK)
-        msk_hash = hashlib.sha256(ck + ik).digest()
-        self.session_keys.msk = msk_hash[:16]
+        # Use CK directly as the AES-CCM encryption key.
+        # The real TWI SDK uses CK (MILENAGE f3) as the session key after
+        # EAP-AKA completes. IK is kept for AT_MAC computation.
+        self.session_keys.encryption_key = ck
 
         self.state = EapAkaState.CHALLENGE_RECEIVED
 
         logger.info(
-            "AUTN validated, session keys derived: CK=%d, IK=%d, MSK=%d bytes",
+            "AUTN validated, session keys derived: CK=%d, IK=%d, encryption_key=%d bytes",
             len(ck),
             len(ik),
-            len(self.session_keys.msk),
+            len(self.session_keys.encryption_key),
         )
 
         # Build AT_RES attribute
@@ -266,7 +299,22 @@ class EapAkaSlave:
         res_bits = len(xres) * 8
         at_res = _build_attribute(AT_RES, res_bits.to_bytes(2, "big") + xres)
 
-        return self._build_eap_response(identifier, AKA_CHALLENGE, at_res)
+        # Include AT_MAC in response if the challenge contained one
+        response_attrs = at_res
+        if AT_MAC in attrs:
+            # Compute response AT_MAC
+            res_aka_header = bytes([EAP_TYPE_AKA, AKA_CHALLENGE, 0, 0])
+            res_at_res = at_res
+            # Placeholder MAC (16 zero bytes) for computation
+            placeholder_mac = _build_attribute(AT_MAC, bytes(16))
+            res_payload = res_aka_header + res_at_res + placeholder_mac
+            res_total_len = (4 + len(res_payload)).to_bytes(2, "big")
+            res_eap_header = bytes([EAP_RESPONSE, identifier])
+            res_mac_input = res_eap_header + res_total_len + res_payload
+            res_mac = hmac.new(k_aut, res_mac_input, hashlib.sha256).digest()[:16]
+            response_attrs += _build_attribute(AT_MAC, res_mac)
+
+        return self._build_eap_response(identifier, AKA_CHALLENGE, response_attrs)
 
     def _build_eap_response(
         self, identifier: int, subtype: int, attributes: bytes
@@ -374,3 +422,31 @@ def _build_attribute(attr_type: int, value: bytes) -> bytes:
         result += bytes(padding_needed)
 
     return result
+
+
+def _rebuild_attrs_with_zeroed_mac(attrs_data: bytes) -> bytes:
+    """
+    Rebuild EAP-AKA attributes with the AT_MAC value zeroed (for MAC computation).
+
+    Walks through the raw attribute bytes, finds AT_MAC, and replaces its
+    value with zeros while preserving all other attributes unchanged.
+    """
+    result = bytearray(attrs_data)
+    offset = 0
+
+    while offset + 2 <= len(result):
+        attr_type = result[offset]
+        attr_len_words = result[offset + 1]
+        attr_len_bytes = attr_len_words * 4
+
+        if attr_len_bytes < 4 or offset + attr_len_bytes > len(result):
+            break
+
+        if attr_type == AT_MAC:
+            # Zero the MAC value (bytes 4..end of attribute)
+            for i in range(offset + 4, offset + attr_len_bytes):
+                result[i] = 0
+
+        offset += attr_len_bytes
+
+    return bytes(result)

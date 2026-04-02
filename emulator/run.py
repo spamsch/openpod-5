@@ -26,6 +26,7 @@ import sys
 from omnipod_emulator.pod.state import PodState
 from omnipod_emulator.protocol.session import ProtocolSession
 from omnipod_emulator.tcp.server import TcpProtocolServer
+from omnipod_emulator.version import banner, version_string
 
 logger = logging.getLogger("omnipod_emulator")
 
@@ -79,18 +80,48 @@ def parse_args() -> argparse.Namespace:
         default="aabbccddeeff",
         help="Pod firmware ID as hex string (6 bytes / 12 hex chars).",
     )
+    parser.add_argument(
+        "--log-file",
+        default=None,
+        help=(
+            "Path to a detailed DEBUG log file. The file always logs at "
+            "DEBUG level regardless of --log-level. Rotates at 50 MB, "
+            "keeps 3 backups. Example: --log-file /tmp/openpod-emulator.log"
+        ),
+    )
     return parser.parse_args()
 
 
-def setup_logging(level_name: str) -> None:
-    """Configure structured logging."""
+def setup_logging(level_name: str, log_file: str | None = None) -> None:
+    """Configure structured logging.
+
+    Console gets the requested level. The log file (if set) always gets
+    DEBUG with full hex dumps so test sessions are fully reproducible.
+    """
+    fmt = "%(asctime)s.%(msecs)03d [%(levelname)-8s] %(name)s: %(message)s"
+    datefmt = "%Y-%m-%d %H:%M:%S"
+
     level = getattr(logging, level_name.upper(), logging.INFO)
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s [%(levelname)-8s] %(name)s: %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-        stream=sys.stderr,
-    )
+    root = logging.getLogger()
+    root.setLevel(logging.DEBUG)  # allow everything; handlers filter
+
+    # Console handler — respects --log-level
+    console = logging.StreamHandler(sys.stderr)
+    console.setLevel(level)
+    console.setFormatter(logging.Formatter(fmt, datefmt=datefmt))
+    root.addHandler(console)
+
+    # File handler — always DEBUG for full traceability
+    if log_file:
+        from logging.handlers import RotatingFileHandler
+
+        fh = RotatingFileHandler(
+            log_file, maxBytes=50 * 1024 * 1024, backupCount=3  # 50 MB, keep 3
+        )
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(logging.Formatter(fmt, datefmt=datefmt))
+        root.addHandler(fh)
+
     # Suppress noisy bumble internals unless debugging
     if level > logging.DEBUG:
         logging.getLogger("bumble").setLevel(logging.WARNING)
@@ -99,12 +130,14 @@ def setup_logging(level_name: str) -> None:
 def main() -> None:
     """Main entry point."""
     args = parse_args()
-    setup_logging(args.log_level)
+    setup_logging(args.log_level, log_file=args.log_file)
 
     logger.info("=" * 60)
-    logger.info("Omnipod 5 Pod Emulator starting")
+    for line in banner().splitlines():
+        logger.info(line)
     logger.info("=" * 60)
     logger.info("Mode: %s", args.mode)
+    logger.info("Version: %s", version_string())
     logger.info("Firmware ID: %s", args.firmware_id)
 
     # Deterministic mode

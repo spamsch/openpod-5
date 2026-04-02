@@ -11,8 +11,8 @@ Each phase routes incoming BLE messages to the correct handler:
     - INIT_RECEIVED:   Accept the 0x06 init command and begin pairing.
     - PAIRING:         Exchange ECDH keys and confirmation values.
     - AUTHENTICATING:  Perform EAP-AKA mutual authentication.
-    - ACTIVE:          Decrypt incoming RHP commands, dispatch them, and
-                       encrypt responses.
+    - ACTIVE:          Decrypt → parse TWICommand → dispatch text RHP →
+                       format text RHP → wrap TWICommand → encrypt.
 
 This is the single entry point called by the BLE server for every CMD
 characteristic write.
@@ -31,9 +31,10 @@ import struct
 from omnipod_emulator.crypto import aes_ccm
 from omnipod_emulator.crypto.eap_aka import EapAkaSlave, EapAkaState, SessionKeys
 from omnipod_emulator.pod.state import PodState
-from omnipod_emulator.protocol.activation import ActivationHandler
-from omnipod_emulator.protocol.commands import RhpCommandDispatcher
 from omnipod_emulator.protocol.pairing import PairingStateMachine
+from omnipod_emulator.protocol.rhp_dispatcher import RhpTextDispatcher
+from omnipod_emulator.protocol.rhp_handlers import RhpHandlers
+from omnipod_emulator.protocol.twi_command import MessageType, TWICommand
 
 logger = logging.getLogger(__name__)
 
@@ -123,9 +124,15 @@ class ProtocolSession:
         self._tx_nonce_counter: int = 0
         self._rx_nonce_counter: int = 0
 
-        # Command dispatch
-        self._dispatcher = RhpCommandDispatcher()
-        self._activation_handler = ActivationHandler(pod_state, self._dispatcher)
+        # Text RHP command dispatch (TWICommand + text RHP stack)
+        self._rhp_dispatcher = RhpTextDispatcher()
+        self._rhp_handlers = RhpHandlers(
+            pod_state, self._rhp_dispatcher,
+            on_deactivate=self._on_pod_deactivated,
+        )
+
+        # TWICommand notification counter
+        self._notification_number: int = 0
 
         logger.info(
             "Protocol session created: firmware_id=%s",
@@ -158,24 +165,29 @@ class ProtocolSession:
         msg_type = data[0]
 
         logger.info(
-            "Message received: type=0x%02x, length=%d, phase=%s",
+            "[BLE] RX: type=0x%02x, %d bytes, phase=%s",
             msg_type,
             len(data),
             self._phase.value,
         )
+        logger.debug("[BLE] RX hex: %s", data.hex())
 
         try:
             if msg_type == MSG_INIT:
-                return self._handle_init(data)
+                result = self._handle_init(data)
             elif msg_type == MSG_PAIRING:
-                return self._handle_pairing(data)
+                result = self._handle_pairing(data)
             elif msg_type == MSG_EAP:
-                return self._handle_eap(data)
+                result = self._handle_eap(data)
             elif msg_type == MSG_ENCRYPTED:
-                return self._handle_encrypted_command(data)
+                result = self._handle_encrypted_command(data)
             else:
                 logger.warning("Unknown message type: 0x%02x", msg_type)
                 return None
+
+            if result is not None:
+                logger.debug("[BLE] TX hex: %s", result.hex())
+            return result
         except Exception:
             logger.exception(
                 "Error handling message type 0x%02x in phase %s",
@@ -206,6 +218,12 @@ class ProtocolSession:
         if len(data) < 7:
             logger.warning("Init message too short: %d bytes", len(data))
             return None
+
+        # Validate init subfields: expected [0x06, 0x01, 0x04, controller_id(4)]
+        if data[1] != 0x01 or data[2] != 0x04:
+            logger.warning(
+                "Unexpected init subfields: %02x %02x", data[1], data[2]
+            )
 
         self._controller_id = data[3:7]
 
@@ -407,15 +425,22 @@ class ProtocolSession:
 
     def _handle_encrypted_command(self, data: bytes) -> bytes | None:
         """
-        Handle an encrypted RHP command.
+        Handle an encrypted application message.
 
-        Expected format:
+        Protocol stack (documented layer order):
+            1. Decrypt AES-CCM
+            2. Parse TWICommand frame
+            3. Extract UTF-8 text RHP from commandBytes
+            4. Dispatch text RHP to handlers
+            5. Format text RHP response
+            6. Wrap in TWICommand frame
+            7. Encrypt AES-CCM
+
+        Expected wire format:
             [MSG_ENCRYPTED, nonce_suffix(4), ciphertext...]
 
         The full nonce is constructed as:
             rx_nonce_counter(8, big-endian) || nonce_suffix(4) || 0x00
-
-        The encryption key is the MSK from EAP-AKA.
         """
         if self._phase != SessionPhase.ACTIVE:
             logger.warning(
@@ -423,7 +448,7 @@ class ProtocolSession:
             )
             return None
 
-        if self._session_keys is None or not self._session_keys.msk:
+        if self._session_keys is None or not self._session_keys.encryption_key:
             logger.error("No session keys available for decryption")
             return None
 
@@ -436,14 +461,13 @@ class ProtocolSession:
         nonce_suffix = data[1:5]
         ciphertext = data[5:]
 
-        # Build the full nonce
+        # Step 1: Decrypt AES-CCM
         rx_nonce = self._build_nonce(self._rx_nonce_counter, nonce_suffix)
         self._rx_nonce_counter += 1
 
-        # Decrypt
         try:
             plaintext = aes_ccm.decrypt(
-                key=self._session_keys.msk,
+                key=self._session_keys.encryption_key,
                 ciphertext=ciphertext,
                 nonce=rx_nonce,
             )
@@ -451,31 +475,62 @@ class ProtocolSession:
             logger.exception("AES-CCM decryption failed")
             return None
 
-        logger.info(
-            "Decrypted command: %d bytes plaintext", len(plaintext)
+        logger.debug("[TWI] Decrypt → plaintext: %s", plaintext.hex())
+
+        # Step 2: Parse TWICommand frame
+        twi_cmd: TWICommand | None = None
+        try:
+            twi_cmd = TWICommand.parse(plaintext)
+            rhp_text = twi_cmd.command_bytes
+        except ValueError:
+            logger.warning(
+                "TWICommand parse failed, falling back to raw UTF-8"
+            )
+            # Fallback: treat entire plaintext as UTF-8 RHP text
+            # (for backward compatibility during migration)
+            rhp_text = plaintext.decode("utf-8", errors="replace")
+
+        if twi_cmd is not None:
+            logger.debug(
+                "[TWI] Parsed: id=%d, last=%s, nn=%d",
+                twi_cmd.command_id,
+                twi_cmd.last_message,
+                twi_cmd.notification_number,
+            )
+
+        # Step 3-4: Dispatch text RHP
+        logger.info("[RHP] ← %s", rhp_text)
+        rhp_response_text = self._rhp_dispatcher.dispatch(rhp_text)
+        logger.info("[RHP] → %s", rhp_response_text)
+
+        # Step 5-6: Wrap response in TWICommand
+        response_twi = TWICommand(
+            command_bytes=rhp_response_text,
+            command_id=twi_cmd.command_id if twi_cmd else 0,
+            last_message=True,
+            message_type=MessageType.ENCRYPTED,
+            notification_number=self._notification_number,
         )
+        self._notification_number += 1
 
-        # Dispatch to RHP command handler
-        response = self._dispatcher.dispatch(plaintext)
-        response_bytes = response.to_bytes()
+        response_bytes = response_twi.serialize()
+        logger.debug("[TWI] Encrypt → ciphertext: %d bytes", len(response_bytes))
 
-        # Encrypt response
+        # Step 7: Encrypt AES-CCM
         tx_nonce_suffix = os.urandom(4)
         tx_nonce = self._build_nonce(self._tx_nonce_counter, tx_nonce_suffix)
         self._tx_nonce_counter += 1
 
         encrypted_response = aes_ccm.encrypt(
-            key=self._session_keys.msk,
+            key=self._session_keys.encryption_key,
             plaintext=response_bytes,
             nonce=tx_nonce,
         )
 
-        # Format: [MSG_ENCRYPTED, tx_nonce_suffix(4), ciphertext...]
+        # Wire format: [MSG_ENCRYPTED, tx_nonce_suffix(4), ciphertext...]
         result = bytes([MSG_ENCRYPTED]) + tx_nonce_suffix + encrypted_response
 
-        logger.info(
-            "Encrypted response: %d bytes ciphertext", len(encrypted_response)
-        )
+        logger.debug("[TWI] TX encrypted: %s", result.hex())
 
         return result
 
@@ -499,6 +554,18 @@ class ProtocolSession:
         """
         return struct.pack(">Q", counter) + suffix[:4] + b"\x00"
 
+    def _on_pod_deactivated(self) -> None:
+        """
+        Called by the RHP deactivation handler to clear LTK.
+
+        Only clears the LTK so the next connection requires a fresh pairing.
+        Session keys and phase are preserved so the deactivation response
+        can still be encrypted and sent back. Full cleanup happens on the
+        next disconnect or init.
+        """
+        logger.info("Pod deactivated: clearing LTK for fresh pairing")
+        self._ltk = None
+
     def on_disconnect(self) -> None:
         """
         Handle BLE disconnection.
@@ -517,6 +584,7 @@ class ProtocolSession:
         self._session_keys = None
         self._tx_nonce_counter = 0
         self._rx_nonce_counter = 0
+        self._notification_number = 0
         self._eap_aka = None
 
         if self._ltk is not None:
