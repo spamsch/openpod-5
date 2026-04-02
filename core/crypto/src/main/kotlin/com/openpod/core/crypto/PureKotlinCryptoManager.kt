@@ -17,9 +17,9 @@ import javax.inject.Singleton
 /**
  * Pure-Kotlin implementation of [CryptoManager].
  *
- * Replaces the native JNI-based implementation with portable crypto
- * using Bouncy Castle (X25519, AES-CCM) and standard JCA (SHA-256, AES-ECB).
- * Works on all Android ABIs (arm64, armeabi-v7a, x86_64).
+ * Pure-Kotlin cryptographic operations using Bouncy Castle (X25519, AES-CCM)
+ * and standard JCA (SHA-256, AES-ECB). No native libraries required —
+ * works on all Android ABIs (arm64, armeabi-v7a, x86_64).
  *
  * Thread-safety is ensured by a [Mutex].
  */
