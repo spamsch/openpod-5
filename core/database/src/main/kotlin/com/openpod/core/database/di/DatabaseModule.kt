@@ -9,6 +9,7 @@ import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.integration.android.AndroidKeysetManager
 import com.openpod.core.database.OpenPodDatabase
+import com.openpod.core.database.dao.AuditEventDao
 import com.openpod.core.database.dao.BasalProgramDao
 import com.openpod.core.database.dao.HistoryEventDao
 import com.openpod.core.database.dao.InsulinProfileDao
@@ -118,7 +119,7 @@ internal object DatabaseModule {
             OpenPodDatabase.DATABASE_NAME,
         )
             .openHelperFactory(factory)
-            .addMigrations(OpenPodDatabase.MIGRATION_1_2)
+            .addMigrations(OpenPodDatabase.MIGRATION_1_2, OpenPodDatabase.MIGRATION_2_3)
             .build()
     }
 
@@ -190,4 +191,10 @@ internal object DatabaseModule {
     @Singleton
     fun provideHistoryEventDao(database: OpenPodDatabase): HistoryEventDao =
         database.historyEventDao()
+
+    /** Provides the [AuditEventDao] singleton. */
+    @Provides
+    @Singleton
+    fun provideAuditEventDao(database: OpenPodDatabase): AuditEventDao =
+        database.auditEventDao()
 }

@@ -9,10 +9,12 @@ import com.openpod.core.database.converter.InsulinTypeConverter
 import com.openpod.core.database.converter.LocalTimeConverter
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.openpod.core.database.dao.AuditEventDao
 import com.openpod.core.database.dao.BasalProgramDao
 import com.openpod.core.database.dao.HistoryEventDao
 import com.openpod.core.database.dao.InsulinProfileDao
 import com.openpod.core.database.dao.PodSessionDao
+import com.openpod.core.database.entity.AuditEventEntity
 import com.openpod.core.database.entity.BasalProgramEntity
 import com.openpod.core.database.entity.HistoryEventEntity
 import com.openpod.core.database.entity.BasalSegmentEntity
@@ -32,6 +34,7 @@ import com.openpod.core.database.entity.TargetGlucoseSegmentEntity
  * **Schema version history:**
  * - Version 1: Initial schema with profile, segments, basal programs, and pod sessions.
  * - Version 2: Add history_event table for persistent event timeline.
+ * - Version 3: Add audit_event table for immutable, hash-chained audit trail.
  */
 @Database(
     entities = [
@@ -43,8 +46,9 @@ import com.openpod.core.database.entity.TargetGlucoseSegmentEntity
         BasalSegmentEntity::class,
         PodSessionEntity::class,
         HistoryEventEntity::class,
+        AuditEventEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 @TypeConverters(
@@ -67,9 +71,37 @@ abstract class OpenPodDatabase : RoomDatabase() {
     /** DAO for history event timeline. */
     abstract fun historyEventDao(): HistoryEventDao
 
+    /** DAO for the immutable audit trail. */
+    abstract fun auditEventDao(): AuditEventDao
+
     companion object {
         /** Database file name. */
         const val DATABASE_NAME = "openpod.db"
+
+        /** Migration from version 2 to 3: add audit_event table with hash-chain columns. */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `audit_event` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `category` TEXT NOT NULL,
+                        `timestamp_utc` INTEGER NOT NULL,
+                        `actor` TEXT NOT NULL,
+                        `source` TEXT NOT NULL,
+                        `clinical_context` TEXT NOT NULL,
+                        `payload_json` TEXT NOT NULL,
+                        `payload_hash` TEXT NOT NULL,
+                        `previous_event_hash` TEXT NOT NULL,
+                        `record_checksum` TEXT NOT NULL
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_audit_event_timestamp_utc` ON `audit_event` (`timestamp_utc`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_audit_event_category` ON `audit_event` (`category`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_audit_event_clinical_context` ON `audit_event` (`clinical_context`)")
+            }
+        }
 
         /** Migration from version 1 to 2: add history_event table. */
         val MIGRATION_1_2 = object : Migration(1, 2) {
