@@ -45,6 +45,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -62,10 +63,15 @@ fun BolusScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
 
+    val blockedMessage = stringResource(R.string.bolus_blocked, "%s")
     CollectEffects(viewModel.effect) { effect ->
         when (effect) {
             BolusEffect.NavigateBack -> onBack()
             is BolusEffect.ShowError -> snackbarHostState.showSnackbar(effect.message)
+            is BolusEffect.SafetyGateFailure -> {
+                val reasons = effect.failures.joinToString(", ") { it::class.simpleName ?: "Unknown" }
+                snackbarHostState.showSnackbar(blockedMessage.format(reasons))
+            }
         }
     }
 
@@ -76,21 +82,21 @@ fun BolusScreen(
                     title = {
                         Text(
                             when (state.phase) {
-                                BolusPhase.ENTRY -> "Bolus"
-                                BolusPhase.REVIEW -> "Review Bolus"
-                                BolusPhase.COMPLETE -> "Bolus Complete"
-                                else -> "Bolus"
+                                BolusPhase.ENTRY -> stringResource(R.string.bolus_title)
+                                BolusPhase.REVIEW -> stringResource(R.string.bolus_review_title)
+                                BolusPhase.COMPLETE -> stringResource(R.string.bolus_complete_title)
+                                else -> stringResource(R.string.bolus_title)
                             },
                         )
                     },
                     navigationIcon = {
                         if (state.phase == BolusPhase.ENTRY) {
                             IconButton(onClick = onBack) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.bolus_back_cd))
                             }
                         } else if (state.phase == BolusPhase.REVIEW) {
                             IconButton(onClick = { viewModel.onIntent(BolusIntent.BackToEntry) }) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.bolus_back_cd))
                             }
                         }
                     },
@@ -120,19 +126,17 @@ private fun EntryPhase(state: BolusState, onIntent: (BolusIntent) -> Unit) {
             .padding(horizontal = 24.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        // Carbs input (primary)
         OutlinedTextField(
             value = state.carbsText,
             onValueChange = { onIntent(BolusIntent.UpdateCarbs(it)) },
-            label = { Text("Carbs") },
+            label = { Text(stringResource(R.string.bolus_carbs_label)) },
             placeholder = { Text("0") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
-            suffix = { Text("g") },
+            suffix = { Text(stringResource(R.string.unit_grams_suffix)) },
         )
 
-        // Blood glucose: pod value + override
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -141,32 +145,31 @@ private fun EntryPhase(state: BolusState, onIntent: (BolusIntent) -> Unit) {
             OutlinedTextField(
                 value = state.bgOverrideText,
                 onValueChange = { onIntent(BolusIntent.UpdateBgOverride(it)) },
-                label = { Text("Blood Glucose") },
+                label = { Text(stringResource(R.string.bolus_bg_label)) },
                 placeholder = {
                     Text(
-                        state.podGlucose?.let { "$it (from pod)" } ?: "Enter BG",
+                        state.podGlucose?.let { stringResource(R.string.bolus_bg_from_pod, it) }
+                            ?: stringResource(R.string.bolus_bg_enter),
                     )
                 },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true,
                 modifier = Modifier.weight(1f),
-                suffix = { Text("mg/dL") },
+                suffix = { Text(stringResource(R.string.unit_mgdl_suffix)) },
             )
             IconButton(onClick = { onIntent(BolusIntent.RefreshBg) }) {
-                Icon(Icons.Filled.Refresh, contentDescription = "Refresh BG from pod")
+                Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.bolus_bg_refresh_cd))
             }
         }
 
-        // Current IOB info
         if (state.currentIob > 0.01) {
             Text(
-                "IOB: %.2f U active".format(state.currentIob),
+                stringResource(R.string.bolus_iob_active, "%.2f".format(state.currentIob)),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 
-        // Calculator breakdown
         state.calculation?.let { calc ->
             Card(
                 colors = CardDefaults.cardColors(
@@ -174,13 +177,13 @@ private fun EntryPhase(state: BolusState, onIntent: (BolusIntent) -> Unit) {
                 ),
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Bolus Calculator", style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.bolus_calculator_title), style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.height(8.dp))
-                    if (calc.mealDose > 0) CalcRow("Meal dose", "+%.2f U".format(calc.mealDose))
-                    if (calc.correctionDose > 0) CalcRow("Correction", "+%.2f U".format(calc.correctionDose))
-                    if (calc.iobDeduction > 0) CalcRow("IOB deduction", "-%.2f U".format(calc.iobDeduction))
+                    if (calc.mealDose > 0) CalcRow(stringResource(R.string.bolus_calc_meal_dose), "+%.2f U".format(calc.mealDose))
+                    if (calc.correctionDose > 0) CalcRow(stringResource(R.string.bolus_calc_correction), "+%.2f U".format(calc.correctionDose))
+                    if (calc.iobDeduction > 0) CalcRow(stringResource(R.string.bolus_calc_iob_deduction), "-%.2f U".format(calc.iobDeduction))
                     Spacer(Modifier.height(4.dp))
-                    CalcRow("Suggested", "%.2f U".format(calc.suggestedDose), bold = true)
+                    CalcRow(stringResource(R.string.bolus_calc_suggested), "%.2f U".format(calc.suggestedDose), bold = true)
 
                     if (calc.suggestedDose > 0) {
                         Spacer(Modifier.height(8.dp))
@@ -188,34 +191,32 @@ private fun EntryPhase(state: BolusState, onIntent: (BolusIntent) -> Unit) {
                             onClick = { onIntent(BolusIntent.UseCalculatedDose) },
                             modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Text("Use Suggested Dose")
+                            Text(stringResource(R.string.bolus_use_suggested))
                         }
                     }
                 }
             }
         }
 
-        // Dose (editable, filled by "Use Suggested" or manual entry)
         OutlinedTextField(
             value = state.unitsText,
             onValueChange = { onIntent(BolusIntent.UpdateUnits(it)) },
-            label = { Text("Dose") },
+            label = { Text(stringResource(R.string.bolus_dose_label)) },
             placeholder = { Text("0.00") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
-            suffix = { Text("U") },
+            suffix = { Text(stringResource(R.string.unit_insulin_suffix)) },
         )
 
         Spacer(Modifier.weight(1f))
 
-        // Review button
         Button(
             onClick = { onIntent(BolusIntent.NextToReview) },
             modifier = Modifier.fillMaxWidth(),
             enabled = state.canReview,
         ) {
-            Text("Review Bolus")
+            Text(stringResource(R.string.bolus_review_button))
         }
     }
 }
@@ -248,14 +249,13 @@ private fun ReviewPhase(state: BolusState, onIntent: (BolusIntent) -> Unit) {
             .padding(horizontal = 24.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        // Summary card
         Card(
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             ),
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("Bolus Summary", style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.bolus_summary_title), style = MaterialTheme.typography.titleSmall)
                 Spacer(Modifier.height(12.dp))
                 Text(
                     "%.2f U".format(state.parsedUnits ?: 0.0),
@@ -265,23 +265,21 @@ private fun ReviewPhase(state: BolusState, onIntent: (BolusIntent) -> Unit) {
                 )
                 Spacer(Modifier.height(12.dp))
                 state.parsedCarbs?.let { carbs ->
-                    if (carbs > 0) CalcRow("Carbs", "$carbs g")
+                    if (carbs > 0) CalcRow(stringResource(R.string.bolus_carbs_summary), "$carbs ${stringResource(R.string.unit_grams_suffix)}")
                 }
                 state.effectiveGlucose?.let { glucose ->
-                    CalcRow("Blood Glucose", "$glucose mg/dL")
+                    CalcRow(stringResource(R.string.bolus_bg_summary), "$glucose ${stringResource(R.string.unit_mgdl_suffix)}")
                 }
             }
         }
 
-        // PIN entry
         Text(
-            "Enter PIN to confirm delivery",
+            stringResource(R.string.bolus_pin_prompt),
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.fillMaxWidth(),
             textAlign = TextAlign.Center,
         )
 
-        // PIN dots
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Center,
@@ -304,7 +302,7 @@ private fun ReviewPhase(state: BolusState, onIntent: (BolusIntent) -> Unit) {
 
         if (state.pinError) {
             Text(
-                "Incorrect PIN",
+                stringResource(R.string.bolus_pin_incorrect),
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.fillMaxWidth(),
@@ -312,7 +310,6 @@ private fun ReviewPhase(state: BolusState, onIntent: (BolusIntent) -> Unit) {
             )
         }
 
-        // Number pad
         NumberPad(
             onDigit = { digit ->
                 if (state.pinText.length < 4) {
@@ -328,7 +325,6 @@ private fun ReviewPhase(state: BolusState, onIntent: (BolusIntent) -> Unit) {
 
         Spacer(Modifier.weight(1f))
 
-        // Deliver button
         Button(
             onClick = { onIntent(BolusIntent.Deliver) },
             modifier = Modifier.fillMaxWidth(),
@@ -339,7 +335,7 @@ private fun ReviewPhase(state: BolusState, onIntent: (BolusIntent) -> Unit) {
         ) {
             Icon(Icons.Filled.WaterDrop, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
-            Text("Deliver %.2f U".format(state.parsedUnits ?: 0.0))
+            Text(stringResource(R.string.bolus_deliver_button, "%.2f".format(state.parsedUnits ?: 0.0)))
         }
     }
 }
@@ -395,7 +391,7 @@ private fun DeliveringPhase(state: BolusState, onIntent: (BolusIntent) -> Unit) 
         ProgressRing(
             progress = state.deliveryPercent,
             label = "%.2f U".format(state.deliveredUnits),
-            sublabel = "of %.2f U".format(state.requestedUnits),
+            sublabel = stringResource(R.string.bolus_of_total, "%.2f".format(state.requestedUnits)),
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(200.dp),
         )
@@ -410,7 +406,7 @@ private fun DeliveringPhase(state: BolusState, onIntent: (BolusIntent) -> Unit) 
         val pulses = (state.requestedUnits / 0.05).toInt()
         val deliveredPulses = (state.deliveredUnits / 0.05).toInt()
         Text(
-            "$deliveredPulses of $pulses pulses",
+            stringResource(R.string.bolus_pulses_progress, deliveredPulses, pulses),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -418,7 +414,7 @@ private fun DeliveringPhase(state: BolusState, onIntent: (BolusIntent) -> Unit) 
         val minutes = state.elapsedSeconds / 60
         val seconds = state.elapsedSeconds % 60
         Text(
-            "Elapsed: %d:%02d".format(minutes, seconds),
+            stringResource(R.string.bolus_elapsed, minutes, seconds),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -428,7 +424,7 @@ private fun DeliveringPhase(state: BolusState, onIntent: (BolusIntent) -> Unit) 
         if (state.showCancelConfirm) {
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 OutlinedButton(onClick = { onIntent(BolusIntent.DismissCancelDialog) }) {
-                    Text("Continue")
+                    Text(stringResource(R.string.bolus_continue))
                 }
                 Button(
                     onClick = { onIntent(BolusIntent.ConfirmCancel) },
@@ -436,7 +432,7 @@ private fun DeliveringPhase(state: BolusState, onIntent: (BolusIntent) -> Unit) 
                         containerColor = MaterialTheme.colorScheme.error,
                     ),
                 ) {
-                    Text("Yes, Cancel")
+                    Text(stringResource(R.string.bolus_yes_cancel))
                 }
             }
         } else {
@@ -446,7 +442,7 @@ private fun DeliveringPhase(state: BolusState, onIntent: (BolusIntent) -> Unit) 
                     contentColor = MaterialTheme.colorScheme.error,
                 ),
             ) {
-                Text("Cancel Bolus")
+                Text(stringResource(R.string.bolus_cancel_bolus))
             }
         }
     }
@@ -481,20 +477,20 @@ private fun CompletePhase(state: BolusState, onIntent: (BolusIntent) -> Unit) {
         Spacer(Modifier.height(24.dp))
 
         Text(
-            if (state.wasCancelled) "Bolus Cancelled" else "Bolus Complete",
+            if (state.wasCancelled) stringResource(R.string.bolus_cancelled) else stringResource(R.string.bolus_completed),
             style = MaterialTheme.typography.headlineSmall,
         )
 
         Spacer(Modifier.height(8.dp))
 
         Text(
-            "%.2f U delivered".format(state.deliveredUnits),
+            stringResource(R.string.bolus_delivered_amount, "%.2f".format(state.deliveredUnits)),
             style = MaterialTheme.typography.titleLarge,
         )
 
         if (state.wasCancelled) {
             Text(
-                "of %.2f U requested".format(state.requestedUnits),
+                stringResource(R.string.bolus_of_requested, "%.2f".format(state.requestedUnits)),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -508,9 +504,9 @@ private fun CompletePhase(state: BolusState, onIntent: (BolusIntent) -> Unit) {
                 ),
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    CalcRow("Type", record.bolusType.name.lowercase().replaceFirstChar { it.uppercase() })
-                    if (record.carbsGrams > 0) CalcRow("Carbs", "${record.carbsGrams} g")
-                    record.glucoseMgDl?.let { CalcRow("BG", "$it mg/dL") }
+                    CalcRow(stringResource(R.string.bolus_type_label), record.bolusType.name.lowercase().replaceFirstChar { it.uppercase() })
+                    if (record.carbsGrams > 0) CalcRow(stringResource(R.string.bolus_carbs_summary), "${record.carbsGrams} ${stringResource(R.string.unit_grams_suffix)}")
+                    record.glucoseMgDl?.let { CalcRow(stringResource(R.string.bolus_bg_summary), "$it ${stringResource(R.string.unit_mgdl_suffix)}") }
                 }
             }
         }
@@ -521,7 +517,7 @@ private fun CompletePhase(state: BolusState, onIntent: (BolusIntent) -> Unit) {
             onClick = { onIntent(BolusIntent.Done) },
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text("Done")
+            Text(stringResource(R.string.bolus_done))
         }
     }
 }

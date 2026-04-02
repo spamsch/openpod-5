@@ -2,7 +2,13 @@ package com.openpod.feature.bolus
 
 import com.openpod.core.datastore.PinManager
 import com.openpod.core.ui.mvi.MviViewModel
+import com.openpod.domain.audit.AuditRepository
+import com.openpod.domain.bolus.BolusSafetyValidator
+import com.openpod.domain.bolus.ValidationResult
+import com.openpod.domain.history.HistoryRepository
 import com.openpod.domain.pod.PodManager
+import com.openpod.model.audit.AuditCategory
+import com.openpod.model.history.HistoryEventType
 import com.openpod.model.insulin.BolusCalculator
 import com.openpod.model.insulin.BolusRecord
 import com.openpod.model.insulin.BolusType
@@ -17,6 +23,9 @@ import javax.inject.Inject
 class BolusViewModel @Inject constructor(
     private val podManager: PodManager,
     private val pinManager: PinManager,
+    private val safetyValidator: BolusSafetyValidator,
+    private val auditRepository: AuditRepository,
+    private val historyRepository: HistoryRepository,
 ) : MviViewModel<BolusState, BolusIntent, BolusEffect>(
     initialState = BolusState(),
 ) {
@@ -122,30 +131,98 @@ class BolusViewModel @Inject constructor(
     private fun onDeliver() {
         if (!currentState.isAuthenticated) return
         val units = currentState.parsedUnits ?: return
+        val bolusId = UUID.randomUUID().toString()
 
-        updateState {
-            copy(
-                phase = BolusPhase.DELIVERING,
-                requestedUnits = units,
-                deliveredUnits = 0.0,
-                isDelivering = true,
-                elapsedSeconds = 0,
-            )
-        }
+        updateState { copy(isValidating = true) }
 
         launch {
+            // Audit: bolus requested
+            auditRepository.record(
+                category = AuditCategory.BOLUS_REQUEST,
+                actor = "user",
+                source = "BolusViewModel",
+                clinicalContext = bolusId,
+                payloadJson = buildBolusPayload(units),
+            )
+
+            // Safety validation immediately before dispatch
+            val validationResult = safetyValidator.validate(units)
+
+            // Audit: precondition check result
+            auditRepository.record(
+                category = AuditCategory.BOLUS_PRECONDITION_CHECK,
+                actor = "system",
+                source = "BolusSafetyValidator",
+                clinicalContext = bolusId,
+                payloadJson = """{"passed":${validationResult is ValidationResult.Passed}}""",
+            )
+
+            when (validationResult) {
+                is ValidationResult.Failed -> {
+                    Timber.w("Bolus safety validation failed: %s", validationResult.failures)
+                    auditRepository.record(
+                        category = AuditCategory.BOLUS_FAIL,
+                        actor = "system",
+                        source = "BolusSafetyValidator",
+                        clinicalContext = bolusId,
+                        payloadJson = """{"reason":"safety_gate","failures":${validationResult.failures.size}}""",
+                    )
+                    updateState { copy(isValidating = false) }
+                    emitEffect(BolusEffect.SafetyGateFailure(validationResult.failures))
+                    return@launch
+                }
+                is ValidationResult.Passed -> { /* proceed */ }
+            }
+
+            updateState {
+                copy(
+                    isValidating = false,
+                    phase = BolusPhase.DELIVERING,
+                    requestedUnits = units,
+                    deliveredUnits = 0.0,
+                    isDelivering = true,
+                    elapsedSeconds = 0,
+                )
+            }
+
+            // Audit: dispatch
+            auditRepository.record(
+                category = AuditCategory.BOLUS_DISPATCH,
+                actor = "system",
+                source = "BolusViewModel",
+                clinicalContext = bolusId,
+                payloadJson = """{"units":$units}""",
+            )
+
             val result = podManager.sendBolus(units)
             if (result.isFailure) {
                 Timber.e(result.exceptionOrNull(), "Bolus command failed")
+                auditRepository.record(
+                    category = AuditCategory.BOLUS_FAIL,
+                    actor = "system",
+                    source = "PodManager",
+                    clinicalContext = bolusId,
+                    payloadJson = """{"reason":"command_failed","error":"${result.exceptionOrNull()?.message}"}""",
+                )
                 emitEffect(BolusEffect.ShowError("Failed to start bolus"))
                 updateState { copy(phase = BolusPhase.ENTRY, isDelivering = false) }
                 return@launch
             }
-            pollDeliveryProgress()
+
+            // Audit: pod acknowledged
+            auditRepository.record(
+                category = AuditCategory.BOLUS_ACK,
+                actor = "pod",
+                source = "PodManager",
+                clinicalContext = bolusId,
+                payloadJson = """{"units":$units}""",
+            )
+
+            pollDeliveryProgress(bolusId)
         }
     }
 
-    private suspend fun pollDeliveryProgress() {
+    private suspend fun pollDeliveryProgress(bolusId: String) {
         val startTime = System.currentTimeMillis()
         while (currentState.isDelivering) {
             delay(POLL_INTERVAL_MS)
@@ -160,7 +237,7 @@ class BolusViewModel @Inject constructor(
                     )
                 }
                 if (!status.bolusInProgress && status.bolusTotalUnits > 0) {
-                    onDeliveryComplete(delivered = status.bolusTotalUnits - status.bolusRemainingUnits, cancelled = false)
+                    onDeliveryComplete(bolusId = bolusId, delivered = status.bolusTotalUnits - status.bolusRemainingUnits, cancelled = false)
                     return
                 }
             } else {
@@ -180,11 +257,12 @@ class BolusViewModel @Inject constructor(
             } else {
                 currentState.deliveredUnits
             }
-            onDeliveryComplete(delivered = delivered, cancelled = true)
+            // Use a stable ID for cancel audit — derive from state if no bolusId is tracked
+            onDeliveryComplete(bolusId = "cancel-${System.currentTimeMillis()}", delivered = delivered, cancelled = true)
         }
     }
 
-    private fun onDeliveryComplete(delivered: Double, cancelled: Boolean) {
+    private suspend fun onDeliveryComplete(bolusId: String, delivered: Double, cancelled: Boolean) {
         val s = currentState
         val carbs = s.parsedCarbs ?: 0
         val bolusType = when {
@@ -195,16 +273,35 @@ class BolusViewModel @Inject constructor(
             else -> BolusType.MANUAL
         }
 
+        val finalDelivered = delivered.coerceAtLeast(0.0).coerceAtMost(s.requestedUnits)
         val record = BolusRecord(
-            id = UUID.randomUUID().toString(),
+            id = bolusId,
             requestedUnits = s.requestedUnits,
-            deliveredUnits = delivered.coerceAtLeast(0.0).coerceAtMost(s.requestedUnits),
+            deliveredUnits = finalDelivered,
             bolusType = bolusType,
             carbsGrams = carbs,
             glucoseMgDl = s.effectiveGlucose,
             startedAt = Instant.now().minusSeconds(s.elapsedSeconds.toLong()),
             completedAt = Instant.now(),
             cancelled = cancelled,
+        )
+
+        // Persist bolus to history
+        historyRepository.recordEvent(
+            type = HistoryEventType.BOLUS,
+            primaryValue = finalDelivered,
+            secondaryValue = bolusType.name,
+            metadata = """{"requested":${s.requestedUnits},"carbs":$carbs,"glucose":${s.effectiveGlucose},"cancelled":$cancelled}""",
+        )
+
+        // Audit: completion or cancellation
+        val auditCategory = if (cancelled) AuditCategory.BOLUS_CANCEL else AuditCategory.BOLUS_COMPLETE
+        auditRepository.record(
+            category = auditCategory,
+            actor = if (cancelled) "user" else "pod",
+            source = "BolusViewModel",
+            clinicalContext = bolusId,
+            payloadJson = """{"requested":${s.requestedUnits},"delivered":$finalDelivered,"cancelled":$cancelled,"type":"${bolusType.name}"}""",
         )
 
         updateState {
@@ -215,6 +312,17 @@ class BolusViewModel @Inject constructor(
                 wasCancelled = cancelled,
                 deliveredUnits = record.deliveredUnits,
             )
+        }
+    }
+
+    private fun buildBolusPayload(units: Double): String {
+        val s = currentState
+        return buildString {
+            append("""{"units":$units""")
+            append(""","carbs":${s.parsedCarbs ?: 0}""")
+            s.effectiveGlucose?.let { append(""","glucose":$it""") }
+            append(""","iob":${s.currentIob}""")
+            append("}")
         }
     }
 

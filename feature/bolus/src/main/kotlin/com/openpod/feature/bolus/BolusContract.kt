@@ -3,6 +3,7 @@ package com.openpod.feature.bolus
 import com.openpod.core.ui.mvi.UiEffect
 import com.openpod.core.ui.mvi.UiIntent
 import com.openpod.core.ui.mvi.UiState
+import com.openpod.domain.bolus.SafetyFailure
 import com.openpod.model.insulin.BolusCalculation
 import com.openpod.model.insulin.BolusRecord
 import com.openpod.model.insulin.BolusSettings
@@ -23,6 +24,8 @@ data class BolusState(
     val pinText: String = "",
     val pinError: Boolean = false,
     val isAuthenticated: Boolean = false,
+    // Validation
+    val isValidating: Boolean = false,
     // Delivery
     val requestedUnits: Double = 0.0,
     val deliveredUnits: Double = 0.0,
@@ -68,4 +71,5 @@ sealed interface BolusIntent : UiIntent {
 sealed interface BolusEffect : UiEffect {
     data object NavigateBack : BolusEffect
     data class ShowError(val message: String) : BolusEffect
+    data class SafetyGateFailure(val failures: List<SafetyFailure>) : BolusEffect
 }
