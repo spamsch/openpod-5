@@ -93,11 +93,20 @@ class PodState:
     activation_time: float = 0.0
     total_insulin_delivered: float = 0.0
 
-    # Glucose simulation (CGM proxy — real pods relay Dexcom data)
+    # Glucose simulation (CGM proxy — real Dexcom updates every 5 minutes)
     glucose_mg_dl: int = 120
     glucose_trend: int = 0  # -2=FALLING_QUICKLY, -1=FALLING, 0=STEADY, 1=RISING, 2=RISING_QUICKLY
     _prev_glucose: int = 120
     _last_tick: float = 0.0
+    _last_cgm_update: float = 0.0  # epoch of last CGM reading
+
+    # Automatic micro-bolus (Omnipod 5 auto-mode, every 5 minutes)
+    auto_mode_enabled: bool = True
+    _last_auto_bolus_time: float = 0.0
+    auto_bolus_max_units: float = 0.20  # max per 5-min cycle
+
+    # Basal pulse tracking (real pod delivers 0.05U pulses)
+    _basal_pulse_accumulator: float = 0.0  # fractional pulses accumulated
 
     # IOB tracking
     iob_units: float = 0.0
@@ -144,17 +153,31 @@ class PodState:
         elapsed_hours = self.minutes_since_activation / 60.0
         return max(0.0, 72.0 - elapsed_hours)
 
+    # Constants matching real hardware
+    PULSE_UNITS: float = 0.05       # 1 pump pulse = 0.05 U
+    BOLUS_PULSE_INTERVAL: float = 3.0  # seconds between bolus pulses
+    CGM_INTERVAL: float = 300.0     # 5 minutes between Dexcom readings
+    AUTO_BOLUS_INTERVAL: float = 300.0  # 5 minutes between auto-bolus cycles
+
     def tick(self) -> None:
         """
         Advance the simulation by one time step.
 
         Called before each encode_status() to evolve glucose, IOB, and
-        reservoir values over time. Uses wall-clock time so values change
+        reservoir values over time.  Uses wall-clock time so values change
         at a realistic pace regardless of polling frequency.
+
+        Timing matches real Omnipod 5 + Dexcom behaviour:
+        - CGM glucose updates every 5 minutes (Dexcom G6/G7 interval)
+        - Basal delivered as discrete 0.05 U pulses spread over the hour
+        - Manual bolus delivered as 0.05 U pulses every 3 seconds
+        - Auto-mode micro-bolus every 5 minutes, max 0.20 U per cycle
         """
         now = time.time()
         if self._last_tick == 0.0:
             self._last_tick = now
+            self._last_cgm_update = now
+            self._last_auto_bolus_time = now
             return
 
         elapsed = now - self._last_tick
@@ -162,59 +185,122 @@ class PodState:
             return  # Avoid sub-second noise
         self._last_tick = now
 
-        # -- Glucose: bounded random walk --
-        # Drift toward 120 mg/dL (mean reversion) + random noise
-        mean_reversion = (120 - self.glucose_mg_dl) * 0.002 * elapsed
-        noise = random.gauss(0, 1.5 * math.sqrt(elapsed / 5.0))
-        delta = mean_reversion + noise
-        self._prev_glucose = self.glucose_mg_dl
-        self.glucose_mg_dl = max(40, min(400, int(self.glucose_mg_dl + delta)))
+        # -- CGM glucose: update only every 5 minutes (Dexcom interval) --
+        cgm_elapsed = now - self._last_cgm_update
+        if cgm_elapsed >= self.CGM_INTERVAL:
+            # Number of 5-min periods that passed (usually 1)
+            periods = int(cgm_elapsed / self.CGM_INTERVAL)
+            self._prev_glucose = self.glucose_mg_dl
+            for _ in range(periods):
+                # Drift toward 120 mg/dL (mean reversion) + random noise
+                # Coefficients tuned for one 5-minute step
+                mean_reversion = (120 - self.glucose_mg_dl) * 0.01
+                noise = random.gauss(0, 3.0)  # ~3 mg/dL std dev per 5 min
+                self.glucose_mg_dl = max(
+                    40, min(400, int(self.glucose_mg_dl + mean_reversion + noise))
+                )
+            self._last_cgm_update += periods * self.CGM_INTERVAL
 
-        # Trend from delta (per 5-minute equivalent)
-        rate = (self.glucose_mg_dl - self._prev_glucose) / max(elapsed / 300.0, 0.1)
-        if rate > 10:
-            self.glucose_trend = 2
-        elif rate > 3:
-            self.glucose_trend = 1
-        elif rate < -10:
-            self.glucose_trend = -2
-        elif rate < -3:
-            self.glucose_trend = -1
-        else:
-            self.glucose_trend = 0
+            # Trend: rate of change per 5 minutes
+            rate = self.glucose_mg_dl - self._prev_glucose
+            if periods > 1:
+                rate = rate / periods  # average per period
+            if rate > 10:
+                self.glucose_trend = 2   # RISING_QUICKLY
+            elif rate > 3:
+                self.glucose_trend = 1   # RISING
+            elif rate < -10:
+                self.glucose_trend = -2  # FALLING_QUICKLY
+            elif rate < -3:
+                self.glucose_trend = -1  # FALLING
+            else:
+                self.glucose_trend = 0   # STEADY
+
+            logger.debug(
+                "CGM update: %d mg/dL, trend=%d, rate=%.1f mg/dL per 5min",
+                self.glucose_mg_dl, self.glucose_trend, rate,
+            )
 
         if not self.activated:
             return
 
-        # -- Basal delivery & reservoir depletion --
+        # -- Basal delivery: discrete 0.05 U pulses --
+        effective_basal = (
+            self.temp_basal_rate if self.temp_basal_active else self.basal_rate
+        )
         hours = elapsed / 3600.0
-        basal_delivered = self.basal_rate * hours
-        if basal_delivered > 0:
+        self._basal_pulse_accumulator += effective_basal * hours / self.PULSE_UNITS
+        basal_pulses = int(self._basal_pulse_accumulator)
+        if basal_pulses > 0:
+            self._basal_pulse_accumulator -= basal_pulses
+            basal_delivered = basal_pulses * self.PULSE_UNITS
             self.deliver_insulin(min(basal_delivered, self.reservoir_units))
+            self.iob_units += basal_delivered
 
-        # -- Bolus: progressive delivery (~0.05U per 3s) --
+        # -- Manual bolus: 0.05 U per pulse, one pulse every 3 seconds --
         if self.bolus_in_progress and self.bolus_remaining_units > 0:
-            pulses_this_tick = elapsed / 3.0  # ~1 pulse per 3 seconds
-            bolus_delivered = min(
-                pulses_this_tick * 0.05,
-                self.bolus_remaining_units,
-            )
-            if bolus_delivered > 0:
-                self.deliver_insulin(min(bolus_delivered, self.reservoir_units))
-                self.iob_units += bolus_delivered
-                self.bolus_remaining_units -= bolus_delivered
-                if self.bolus_remaining_units <= 0.001:
-                    self.bolus_remaining_units = 0.0
-                    self.bolus_in_progress = False
-                    logger.info("Bolus delivery complete: %.2fU total", self.bolus_total_units)
+            max_pulses = int(elapsed / self.BOLUS_PULSE_INTERVAL)
+            if max_pulses > 0:
+                bolus_delivered = min(
+                    max_pulses * self.PULSE_UNITS,
+                    self.bolus_remaining_units,
+                )
+                if bolus_delivered > 0:
+                    self.deliver_insulin(min(bolus_delivered, self.reservoir_units))
+                    self.iob_units += bolus_delivered
+                    self.bolus_remaining_units -= bolus_delivered
+                    if self.bolus_remaining_units <= 0.001:
+                        self.bolus_remaining_units = 0.0
+                        self.bolus_in_progress = False
+                        logger.info(
+                            "Bolus delivery complete: %.2fU total",
+                            self.bolus_total_units,
+                        )
 
-        # -- IOB: accumulate from basal + decay --
-        self.iob_units += basal_delivered
-        # Exponential decay: half-life ~90 min
+        # -- Auto-mode micro-bolus: every 5 minutes, max 0.20 U --
+        if self.auto_mode_enabled:
+            auto_elapsed = now - self._last_auto_bolus_time
+            if auto_elapsed >= self.AUTO_BOLUS_INTERVAL:
+                cycles = int(auto_elapsed / self.AUTO_BOLUS_INTERVAL)
+                self._last_auto_bolus_time += cycles * self.AUTO_BOLUS_INTERVAL
+                for _ in range(cycles):
+                    self._deliver_auto_bolus()
+
+        # -- IOB: exponential decay, half-life ~90 min --
         decay = math.exp(-0.693 * elapsed / (90.0 * 60.0))
         self.iob_units *= decay
         if self.iob_units < 0.01:
             self.iob_units = 0.0
+
+    def _deliver_auto_bolus(self) -> None:
+        """
+        Deliver one automatic micro-bolus (Omnipod 5 auto-mode).
+
+        The real algorithm considers CGM trend, IOB, target glucose, and
+        carbs-on-board.  This simplified version delivers a correction when
+        glucose is above target, capped at auto_bolus_max_units (0.20 U).
+        """
+        target = 110  # mg/dL — typical Omnipod 5 target
+        if self.glucose_mg_dl <= target:
+            return
+
+        # Simple proportional correction: ~0.01 U per mg/dL above target,
+        # clamped to [1 pulse .. max].  Real algorithm is far more complex.
+        correction = (self.glucose_mg_dl - target) * 0.01
+        # Round down to whole pulses
+        pulses = int(correction / self.PULSE_UNITS)
+        if pulses < 1:
+            return
+        dose = min(pulses * self.PULSE_UNITS, self.auto_bolus_max_units)
+        dose = min(dose, self.reservoir_units)
+
+        if dose > 0:
+            self.deliver_insulin(dose)
+            self.iob_units += dose
+            logger.info(
+                "Auto micro-bolus: %.2fU (glucose=%d, target=%d)",
+                dose, self.glucose_mg_dl, target,
+            )
 
     def encode_status(self) -> bytes:
         """
@@ -385,6 +471,10 @@ class PodState:
         self.glucose_trend = 0
         self._prev_glucose = 120
         self._last_tick = 0.0
+        self._last_cgm_update = 0.0
+        self._last_auto_bolus_time = 0.0
+        self._basal_pulse_accumulator = 0.0
+        self.auto_mode_enabled = True
         self.iob_units = 0.0
         logger.info("Pod state reset to factory defaults")
 
