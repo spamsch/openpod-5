@@ -4,24 +4,34 @@ The Pi runs the emulator as a real BLE peripheral using its onboard Bluetooth ra
 
 ## SD Card Setup
 
+The SD card ships with Raspberry Pi OS Bookworm 64-bit (2025-05-13) and is pre-configured with:
+
 - **User:** `openpod`
 - **Password:** `openpod`
-- **Hostname:** `raspberrypi` (default)
+- **Hostname:** `openpod`
+- **USB gadget ethernet:** enabled (`dwc2` + `g_ether` in `cmdline.txt`)
+- **WiFi regulatory domain:** DE
 
-Configure your WiFi network using `raspi-config` or by editing `/etc/wpa_supplicant/wpa_supplicant.conf` after first boot.
+WiFi is **not** pre-configured. After first boot, connect via USB gadget ethernet (see below) and configure WiFi with:
+
+```bash
+# Interactive — walks through SSID and password
+sudo nmcli device wifi connect "<SSID>" password "<password>"
+
+# Or use the TUI
+sudo nmtui
+```
 
 ## Connectivity
 
-The Pi is configured for two access methods:
-
 ### 1. USB Gadget Ethernet (USB-C cable to Mac)
 
-The Pi appears as a USB Ethernet adapter when connected via its USB-C power port.
+The Pi appears as a USB Ethernet adapter when connected via its USB-C power port. This is pre-configured on the SD card and works out of the box — no WiFi needed.
 
 On your Mac, go to **System Settings > Network** and look for a new "RNDIS/Ethernet Gadget" interface. Enable Internet Sharing if you want the Pi to reach the internet through your Mac.
 
 ```bash
-ssh openpod@raspberrypi.local
+ssh openpod@openpod.local
 ```
 
 If `.local` doesn't resolve, check the IP assigned to the USB interface:
@@ -35,7 +45,7 @@ ifconfig | grep -A5 "bridge\|en.*RNDIS"
 
 Once WiFi is configured, find the Pi's IP via your router or:
 ```bash
-ping raspberrypi.local
+ping openpod.local
 ```
 
 ## First-Time Setup
@@ -45,13 +55,31 @@ After booting and SSH'ing in:
 ```bash
 # 1. Run the setup script (installs Python, Bumble, disables BlueZ)
 sudo bash /boot/firmware/openpod-setup.sh
+```
 
-# 2. Copy the emulator code from your Mac
-#    (run this on your Mac, not the Pi)
-scp -r ~/Projects/personal/openpod-5/emulator/* openpod@raspberrypi.local:/home/openpod/emulator/
+Then from your Mac, use the deploy script to copy the emulator code, install it, and start the service:
 
-# 3. Install the emulator package
-ssh openpod@raspberrypi.local
+```bash
+./emulator/deploy-to-pi.sh
+```
+
+The deploy script will:
+1. Discover the Pi (mDNS, ARP, subnet scan)
+2. Stamp the current git hash into the build
+3. Rsync the emulator code to `/home/openpod/emulator/`
+4. Install the package in the Pi's virtualenv
+5. Copy the systemd service file and restart the emulator
+
+You can override the Pi address: `PI_HOST=openpod@192.168.1.42 ./emulator/deploy-to-pi.sh`
+
+### Manual setup (without deploy script)
+
+```bash
+# From your Mac — copy emulator code
+scp -r ~/Projects/personal/openpod-5/emulator/* openpod@openpod.local:/home/openpod/emulator/
+
+# On the Pi — install the package
+ssh openpod@openpod.local
 cd /home/openpod/emulator
 .venv/bin/pip install -e .
 ```
@@ -78,10 +106,18 @@ sudo setcap cap_net_admin,cap_net_raw+ep .venv/bin/python3
 
 ### As a systemd service
 
+The `deploy-to-pi.sh` script installs the service automatically. To manage it:
+
 ```bash
 sudo systemctl start openpod-emulator
 sudo systemctl status openpod-emulator
 sudo journalctl -u openpod-emulator -f   # follow logs
+```
+
+Or use the log viewer shortcut from your Mac:
+```bash
+./emulator/pi-logs.sh        # last 50 lines + follow
+./emulator/pi-logs.sh 200    # last 200 lines + follow
 ```
 
 To start automatically on boot:
@@ -95,10 +131,10 @@ From another Linux machine or the Pi itself (if BlueZ isn't masked):
 
 ```bash
 sudo hcitool lescan
-# Should show: XX:XX:XX:XX:XX:XX TWI_Pod
+# Should show: XX:XX:XX:XX:XX:XX Openpod_Emu
 ```
 
-From your Android phone: any BLE scanner app should discover "TWI_Pod" with the Omnipod 5 service UUID `1a7e4024-e3ed-4464-8b7e-751e03d0dc5f`.
+From your Android phone: any BLE scanner app should discover `Openpod_Emu` with the Omnipod 5 service UUID `1a7e4024-e3ed-4464-8b7e-751e03d0dc5f`.
 
 ## Architecture
 
@@ -132,13 +168,15 @@ From your Android phone: any BLE scanner app should discover "TWI_Pod" with the 
 
 **Can't SSH:**
 - Wait 30-60 seconds after power-on for first boot
-- Try `ssh openpod@raspberrypi.local` (mDNS)
-- Try `arp -a | grep raspberry` to find the IP
+- Try `ssh openpod@openpod.local` (mDNS)
+- Try `arp -a | grep openpod` to find the IP
+- Override: `PI_HOST=openpod@<ip> ./emulator/deploy-to-pi.sh`
 
 **BLE not advertising:**
-- Check BlueZ is stopped: `sudo systemctl status bluetooth` should show inactive
+- Check BlueZ is stopped: `sudo systemctl status bluetooth` should show inactive/masked
 - Check hci0 exists: `hciconfig` (may need BlueZ tools installed)
-- Check emulator logs: `journalctl -u openpod-emulator`
+- Check emulator logs: `journalctl -u openpod-emulator` or `./emulator/pi-logs.sh`
 
 **"Permission denied" on HCI socket:**
 - Run with `sudo`, or set capabilities on the Python binary
+- The systemd service uses `AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW` to avoid needing root
