@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_title">Settings</string>
+
+    <!-- Sections -->
+    <string name="settings_section_insulin_delivery">Insulin Delivery</string>
+    <string name="settings_section_security">Security</string>
+    <string name="settings_section_app">App</string>
+    <string name="settings_section_developer">Developer</string>
+
+    <!-- Insulin delivery -->
+    <string name="settings_ic_ratio">IC Ratio</string>
+    <string name="settings_correction_factor">Correction Factor</string>
+    <string name="settings_target_glucose">Target Glucose</string>
+    <string name="settings_dia">Duration of Insulin Action</string>
+    <string name="settings_dia_value">%s hours</string>
+
+    <!-- Dialogs -->
+    <string name="settings_dialog_dia">Duration of Insulin Action</string>
+    <string name="settings_dialog_ic_ratio">Insulin-to-Carb Ratio</string>
+    <string name="settings_dialog_correction_factor">Correction Factor</string>
+    <string name="settings_dialog_target_glucose">Target Glucose</string>
+    <string name="settings_suffix_hours">hours</string>
+    <string name="settings_suffix_g_per_u">g per U</string>
+    <string name="settings_suffix_mgdl_per_u">mg/dL per U</string>
+    <string name="settings_suffix_mgdl">mg/dL</string>
+
+    <!-- Security -->
+    <string name="settings_change_pin">Change PIN</string>
+
+    <!-- App -->
+    <string name="settings_glucose_units">Glucose Units</string>
+    <string name="settings_about">About</string>
+    <string name="settings_about_value">OpenPod v1.0</string>
+
+    <!-- Developer -->
+    <string name="settings_reset_app_data">Reset App Data</string>
+    <string name="settings_reset_title">Reset App Data</string>
+    <string name="settings_reset_message">This will erase all settings, pairing data, and history. The app will restart at the onboarding screen.</string>
+    <string name="settings_reset_confirm">Reset</string>
+    <string name="settings_cancel">Cancel</string>
+</resources>

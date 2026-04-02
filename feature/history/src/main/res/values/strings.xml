@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="history_title">History</string>
+
+    <!-- Filters -->
+    <string name="history_filter_all">All</string>
+    <string name="history_filter_bolus">Bolus</string>
+    <string name="history_filter_glucose">Glucose</string>
+    <string name="history_filter_basal">Basal</string>
+    <string name="history_filter_alerts">Alerts</string>
+    <string name="history_filter_pod">Pod</string>
+
+    <!-- Empty state -->
+    <string name="history_empty_title">No events yet</string>
+    <string name="history_empty_message">Events will appear here as glucose readings are recorded and boluses are delivered.</string>
+
+    <!-- Day headers -->
+    <string name="history_today">Today</string>
+    <string name="history_yesterday">Yesterday</string>
+
+    <!-- Event types -->
+    <string name="history_event_bolus">Bolus</string>
+    <string name="history_event_glucose">Glucose</string>
+    <string name="history_event_basal">Basal Change</string>
+    <string name="history_event_alert">Alert</string>
+    <string name="history_event_pod">Pod Event</string>
+
+    <!-- Value formats -->
+    <string name="history_value_insulin">%s U</string>
+    <string name="history_value_glucose">%d mg/dL</string>
+    <string name="history_value_basal">%s U/hr</string>
+</resources>

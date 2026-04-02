@@ -28,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -60,39 +61,39 @@ fun SettingsScreen(
     // Edit dialogs
     when (state.activeDialog) {
         SettingsDialog.EditDia -> NumberEditDialog(
-            title = "Duration of Insulin Action",
+            title = stringResource(R.string.settings_dialog_dia),
             value = state.editValue,
             onValueChange = { viewModel.onIntent(SettingsIntent.UpdateEditValue(it)) },
             error = state.editError,
-            suffix = "hours",
+            suffix = stringResource(R.string.settings_suffix_hours),
             keyboardType = KeyboardType.Decimal,
             onSave = { viewModel.onIntent(SettingsIntent.SaveEdit) },
             onDismiss = { viewModel.onIntent(SettingsIntent.DismissDialog) },
         )
         SettingsDialog.EditIcRatio -> NumberEditDialog(
-            title = "Insulin-to-Carb Ratio",
+            title = stringResource(R.string.settings_dialog_ic_ratio),
             value = state.editValue,
             onValueChange = { viewModel.onIntent(SettingsIntent.UpdateEditValue(it)) },
             error = state.editError,
-            suffix = "g per U",
+            suffix = stringResource(R.string.settings_suffix_g_per_u),
             onSave = { viewModel.onIntent(SettingsIntent.SaveEdit) },
             onDismiss = { viewModel.onIntent(SettingsIntent.DismissDialog) },
         )
         SettingsDialog.EditCorrectionFactor -> NumberEditDialog(
-            title = "Correction Factor",
+            title = stringResource(R.string.settings_dialog_correction_factor),
             value = state.editValue,
             onValueChange = { viewModel.onIntent(SettingsIntent.UpdateEditValue(it)) },
             error = state.editError,
-            suffix = "mg/dL per U",
+            suffix = stringResource(R.string.settings_suffix_mgdl_per_u),
             onSave = { viewModel.onIntent(SettingsIntent.SaveEdit) },
             onDismiss = { viewModel.onIntent(SettingsIntent.DismissDialog) },
         )
         SettingsDialog.EditTargetGlucose -> NumberEditDialog(
-            title = "Target Glucose",
+            title = stringResource(R.string.settings_dialog_target_glucose),
             value = state.editValue,
             onValueChange = { viewModel.onIntent(SettingsIntent.UpdateEditValue(it)) },
             error = state.editError,
-            suffix = "mg/dL",
+            suffix = stringResource(R.string.settings_suffix_mgdl),
             onSave = { viewModel.onIntent(SettingsIntent.SaveEdit) },
             onDismiss = { viewModel.onIntent(SettingsIntent.DismissDialog) },
         )
@@ -137,7 +138,7 @@ fun SettingsScreen(
         item {
             Spacer(modifier = Modifier.height(24.dp))
             Text(
-                text = "Settings",
+                text = stringResource(R.string.settings_title),
                 style = MaterialTheme.typography.headlineLarge,
                 color = MaterialTheme.colorScheme.onSurface,
             )
@@ -145,67 +146,67 @@ fun SettingsScreen(
         }
 
         // ── Insulin Delivery ───────────────────────────────────────────
-        item { SettingsSectionHeader("Insulin Delivery") }
+        item { SettingsSectionHeader(stringResource(R.string.settings_section_insulin_delivery)) }
         item {
             SettingsGroup {
                 SettingsRow(
-                    label = "IC Ratio",
+                    label = stringResource(R.string.settings_ic_ratio),
                     value = state.currentIcRatio?.let { "1:$it g" } ?: "--",
                     onClick = { viewModel.onIntent(SettingsIntent.OpenDialog(SettingsDialog.EditIcRatio)) },
                 )
                 SettingsRowDivider()
                 SettingsRow(
-                    label = "Correction Factor",
+                    label = stringResource(R.string.settings_correction_factor),
                     value = state.currentCorrectionFactor?.let { "1:$it ${state.glucoseUnit.displayLabel}" } ?: "--",
                     onClick = { viewModel.onIntent(SettingsIntent.OpenDialog(SettingsDialog.EditCorrectionFactor)) },
                 )
                 SettingsRowDivider()
                 SettingsRow(
-                    label = "Target Glucose",
+                    label = stringResource(R.string.settings_target_glucose),
                     value = state.currentTargetLow?.let { "$it ${state.glucoseUnit.displayLabel}" } ?: "--",
                     onClick = { viewModel.onIntent(SettingsIntent.OpenDialog(SettingsDialog.EditTargetGlucose)) },
                 )
                 SettingsRowDivider()
                 SettingsRow(
-                    label = "Duration of Insulin Action",
-                    value = state.diaHours?.let { "%.1f hours".format(it) } ?: "--",
+                    label = stringResource(R.string.settings_dia),
+                    value = state.diaHours?.let { stringResource(R.string.settings_dia_value, "%.1f".format(it)) } ?: "--",
                     onClick = { viewModel.onIntent(SettingsIntent.OpenDialog(SettingsDialog.EditDia)) },
                 )
             }
         }
 
         // ── Security ──────────────────────────────────────────────────
-        item { SettingsSectionHeader("Security") }
+        item { SettingsSectionHeader(stringResource(R.string.settings_section_security)) }
         item {
             SettingsGroup {
                 SettingsRow(
-                    label = "Change PIN",
+                    label = stringResource(R.string.settings_change_pin),
                     onClick = { viewModel.onIntent(SettingsIntent.OpenDialog(SettingsDialog.ChangePin)) },
                 )
             }
         }
 
         // ── App ────────────────────────────────────────────────────────
-        item { SettingsSectionHeader("App") }
+        item { SettingsSectionHeader(stringResource(R.string.settings_section_app)) }
         item {
             SettingsGroup {
                 SettingsRow(
-                    label = "Glucose Units",
+                    label = stringResource(R.string.settings_glucose_units),
                     value = state.glucoseUnit.displayLabel,
                     onClick = { viewModel.onIntent(SettingsIntent.OpenDialog(SettingsDialog.EditGlucoseUnit)) },
                 )
                 SettingsRowDivider()
-                SettingsRow(label = "About", value = "OpenPod v1.0")
+                SettingsRow(label = stringResource(R.string.settings_about), value = stringResource(R.string.settings_about_value))
             }
         }
 
         // ── Developer (debug builds only) ──────────────────────────────
         if (isDebugBuild) {
-            item { SettingsSectionHeader("Developer") }
+            item { SettingsSectionHeader(stringResource(R.string.settings_section_developer)) }
             item {
                 SettingsGroup {
                     SettingsRow(
-                        label = "Reset App Data",
+                        label = stringResource(R.string.settings_reset_app_data),
                         labelColor = MaterialTheme.colorScheme.error,
                         onClick = { showResetDialog = true },
                     )
@@ -221,18 +222,13 @@ fun SettingsScreen(
 private fun ResetConfirmationDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Reset App Data") },
-        text = {
-            Text(
-                "This will erase all settings, pairing data, and history. " +
-                    "The app will restart at the onboarding screen.",
-            )
-        },
+        title = { Text(stringResource(R.string.settings_reset_title)) },
+        text = { Text(stringResource(R.string.settings_reset_message)) },
         confirmButton = {
-            TextButton(onClick = onConfirm) { Text("Reset", color = MaterialTheme.colorScheme.error) }
+            TextButton(onClick = onConfirm) { Text(stringResource(R.string.settings_reset_confirm), color = MaterialTheme.colorScheme.error) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
         },
     )
 }

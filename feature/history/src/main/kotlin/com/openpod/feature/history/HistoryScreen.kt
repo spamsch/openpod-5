@@ -28,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -45,7 +46,7 @@ fun HistoryScreen(
 
     Column(modifier = Modifier.fillMaxSize()) {
         Text(
-            text = "History",
+            text = stringResource(R.string.history_title),
             style = MaterialTheme.typography.headlineLarge,
             modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 8.dp),
         )
@@ -59,7 +60,7 @@ fun HistoryScreen(
                 FilterChip(
                     selected = state.selectedFilter == filter,
                     onClick = { viewModel.onIntent(HistoryIntent.SelectFilter(filter)) },
-                    label = { Text(filter.label) },
+                    label = { Text(filter.displayLabel) },
                 )
             }
         }
@@ -74,10 +75,10 @@ fun HistoryScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                Text("No events yet", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.history_empty_title), style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Events will appear here as glucose readings are recorded and boluses are delivered.",
+                    stringResource(R.string.history_empty_message),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -111,8 +112,8 @@ fun HistoryScreen(
 private fun DayHeader(date: LocalDate) {
     val today = LocalDate.now()
     val label = when (date) {
-        today -> "Today"
-        today.minusDays(1) -> "Yesterday"
+        today -> stringResource(R.string.history_today)
+        today.minusDays(1) -> stringResource(R.string.history_yesterday)
         else -> date.format(DateTimeFormatter.ofPattern("EEEE, MMM d"))
     }
     Text(
@@ -171,14 +172,14 @@ private fun EventCard(event: HistoryEvent) {
     }
 }
 
-private val HistoryFilter.label: String
-    get() = when (this) {
-        HistoryFilter.ALL -> "All"
-        HistoryFilter.BOLUS -> "Bolus"
-        HistoryFilter.GLUCOSE -> "Glucose"
-        HistoryFilter.BASAL -> "Basal"
-        HistoryFilter.ALERTS -> "Alerts"
-        HistoryFilter.POD -> "Pod"
+private val HistoryFilter.displayLabel: String
+    @Composable get() = when (this) {
+        HistoryFilter.ALL -> stringResource(R.string.history_filter_all)
+        HistoryFilter.BOLUS -> stringResource(R.string.history_filter_bolus)
+        HistoryFilter.GLUCOSE -> stringResource(R.string.history_filter_glucose)
+        HistoryFilter.BASAL -> stringResource(R.string.history_filter_basal)
+        HistoryFilter.ALERTS -> stringResource(R.string.history_filter_alerts)
+        HistoryFilter.POD -> stringResource(R.string.history_filter_pod)
     }
 
 private val HistoryEventType.icon: ImageVector
@@ -191,12 +192,12 @@ private val HistoryEventType.icon: ImageVector
     }
 
 private val HistoryEventType.displayTitle: String
-    get() = when (this) {
-        HistoryEventType.BOLUS -> "Bolus"
-        HistoryEventType.GLUCOSE -> "Glucose"
-        HistoryEventType.BASAL -> "Basal Change"
-        HistoryEventType.ALERT -> "Alert"
-        HistoryEventType.POD -> "Pod Event"
+    @Composable get() = when (this) {
+        HistoryEventType.BOLUS -> stringResource(R.string.history_event_bolus)
+        HistoryEventType.GLUCOSE -> stringResource(R.string.history_event_glucose)
+        HistoryEventType.BASAL -> stringResource(R.string.history_event_basal)
+        HistoryEventType.ALERT -> stringResource(R.string.history_event_alert)
+        HistoryEventType.POD -> stringResource(R.string.history_event_pod)
     }
 
 private fun HistoryEventType.formatValue(value: Double): String = when (this) {

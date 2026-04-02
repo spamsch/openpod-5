@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_title">Einstellungen</string>
+
+    <!-- Sections -->
+    <string name="settings_section_insulin_delivery">Insulinabgabe</string>
+    <string name="settings_section_security">Sicherheit</string>
+    <string name="settings_section_app">App</string>
+    <string name="settings_section_developer">Entwickler</string>
+
+    <!-- Insulin delivery -->
+    <string name="settings_ic_ratio">KH-Verhältnis</string>
+    <string name="settings_correction_factor">Korrekturfaktor</string>
+    <string name="settings_target_glucose">Ziel-Blutzucker</string>
+    <string name="settings_dia">Insulinwirkdauer</string>
+    <string name="settings_dia_value">%s Stunden</string>
+
+    <!-- Dialogs -->
+    <string name="settings_dialog_dia">Insulinwirkdauer</string>
+    <string name="settings_dialog_ic_ratio">Insulin-Kohlenhydrat-Verhältnis</string>
+    <string name="settings_dialog_correction_factor">Korrekturfaktor</string>
+    <string name="settings_dialog_target_glucose">Ziel-Blutzucker</string>
+    <string name="settings_suffix_hours">Stunden</string>
+    <string name="settings_suffix_g_per_u">g pro U</string>
+    <string name="settings_suffix_mgdl_per_u">mg/dL pro U</string>
+    <string name="settings_suffix_mgdl">mg/dL</string>
+
+    <!-- Security -->
+    <string name="settings_change_pin">PIN ändern</string>
+
+    <!-- App -->
+    <string name="settings_glucose_units">Glukoseeinheit</string>
+    <string name="settings_about">Über</string>
+    <string name="settings_about_value">OpenPod v1.0</string>
+
+    <!-- Developer -->
+    <string name="settings_reset_app_data">App-Daten zurücksetzen</string>
+    <string name="settings_reset_title">App-Daten zurücksetzen</string>
+    <string name="settings_reset_message">Alle Einstellungen, Kopplungsdaten und der Verlauf werden gelöscht. Die App wird beim Einrichtungsbildschirm neu gestartet.</string>
+    <string name="settings_reset_confirm">Zurücksetzen</string>
+    <string name="settings_cancel">Abbrechen</string>
+</resources>
