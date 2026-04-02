@@ -11,7 +11,11 @@
       "Bash(./gradlew :core:crypto:testDebugUnitTest)",
       "Bash(./gradlew *)",
       "Bash(find :*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(adb install:*)",
+      "Bash(adb shell:*)",
+      "Bash(adb logcat:*)",
+      "Bash(grep -i \"S1\\\\|S2\\\\|S3\\\\|S4\\\\|G1\\\\|G3\\\\|G4\\\\|G255\\\\|S255\" /Users/spamies/Projects/personal/omnipod-connector/docs/protocol/*.md)"
     ]
   }
 }
