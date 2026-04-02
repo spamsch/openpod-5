@@ -12,7 +12,7 @@ Independent research and interoperability project for the **Omnipod 5** insulin 
 |-------|-------------|--------|
 | 1. UI/UX Spec | 33 screen specifications with wireframe review tool | Done |
 | 2. Working App | Onboarding, dashboard, pod pairing, BLE + crypto + protocol layers | Done |
-| 3. Pod Emulator | Python + bumble emulator with pure-Python crypto (96 tests) | Done |
+| 3. Pod Emulator | Python + Bumble emulator with pure-Python crypto (218 tests) | Done |
 | 4. Integration | End-to-end: pairing, live dashboard, bolus delivery via TCP emulator | Done |
 | 5. Hardware Testing | BLE transport, real pod testing (research only) | Next |
 
@@ -21,7 +21,7 @@ Independent research and interoperability project for the **Omnipod 5** insulin 
 MVI + Clean Architecture with a multi-module Gradle project.
 
 ```
-app/                          Application shell, navigation, Hilt entry point
+app/                          Application shell, navigation, Koin entry point
 core/
   model/                      Pure Kotlin domain models
   domain/                     Use cases, bolus calculator, safety logic
@@ -50,7 +50,7 @@ feature/
 |-------|------------|
 | UI | Jetpack Compose + Material 3 (dark-first) |
 | Architecture | MVI with deterministic state for medical safety |
-| DI | Hilt (compile-time graph validation) |
+| DI | Koin (lightweight, pure-Kotlin) |
 | BLE | Kable (coroutines-native) |
 | Database | Room + SQLCipher (AES-256 encryption at rest) |
 | Preferences | DataStore + Tink |
@@ -97,6 +97,28 @@ OpenPod reimplements the phone side of this protocol entirely in Kotlin — no n
 Key BLE identifiers:
 - **GATT Service:** `1a7e4024-e3ed-4464-8b7e-751e03d0dc5f`
 - **Scan UUIDs (unpaired):** `ce1f923d-c539-48ea-7300-0afffffffe0{0-3}`
+
+## Pod Emulator
+
+The `emulator/` directory contains a Python-based Omnipod 5 pod emulator that implements the full protocol stack: BLE advertising, EAP-AKA mutual authentication, AES-CCM encryption, TWI command framing, and RHP command handling.
+
+**TCP mode** (development — no Bluetooth hardware needed):
+```bash
+make emulator          # or: python emulator/run.py --mode tcp
+```
+
+**BLE mode on Raspberry Pi 4** (real over-the-air testing):
+The emulator runs on a Raspberry Pi 4 B using its onboard Bluetooth radio via [Bumble](https://github.com/nicoreinaldo/bumble). The Pi advertises as a pod, and any BLE central (phone, tablet) can discover and pair with it.
+
+```bash
+# Deploy from your Mac
+./emulator/deploy-to-pi.sh
+
+# On the Pi — run as a systemd service
+sudo systemctl start openpod-emulator
+```
+
+See [`emulator/RASPBERRY_PI.md`](emulator/RASPBERRY_PI.md) for full setup instructions.
 
 ## Safety
 
