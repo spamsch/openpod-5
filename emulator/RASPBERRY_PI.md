@@ -53,8 +53,10 @@ ping openpod.local
 After booting and SSH'ing in:
 
 ```bash
-# 1. Run the setup script (installs Python, Bumble, disables BlueZ)
-sudo bash /boot/firmware/openpod-setup.sh
+# 1. Copy the setup script to the Pi and run it
+#    (installs Python, Bumble, disables BlueZ, creates virtualenv)
+scp emulator/openpod-setup.sh openpod@openpod.local:/tmp/
+ssh openpod@openpod.local "sudo bash /tmp/openpod-setup.sh"
 ```
 
 Then from your Mac, use the deploy script to copy the emulator code, install it, and start the service:
