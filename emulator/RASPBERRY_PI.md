@@ -2,12 +2,13 @@
 
 The Pi runs the emulator as a real BLE peripheral using its onboard Bluetooth radio. Any BLE central (Android phone, iOS device) will see it as an Omnipod 5 pod during scanning.
 
-## SD Card Credentials
+## SD Card Setup
 
 - **User:** `openpod`
 - **Password:** `openpod`
-- **WiFi:** Ragnarok (preconfigured)
 - **Hostname:** `raspberrypi` (default)
+
+Configure your WiFi network using `raspi-config` or by editing `/etc/wpa_supplicant/wpa_supplicant.conf` after first boot.
 
 ## Connectivity
 
@@ -32,7 +33,7 @@ ifconfig | grep -A5 "bridge\|en.*RNDIS"
 
 ### 2. WiFi
 
-The Pi connects to "Ragnarok" on boot. Find its IP via your router or:
+Once WiFi is configured, find the Pi's IP via your router or:
 ```bash
 ping raspberrypi.local
 ```
