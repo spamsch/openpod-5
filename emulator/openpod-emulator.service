@@ -1,0 +1,19 @@
+[Unit]
+Description=OpenPod Emulator - Omnipod 5 BLE Pod Emulator
+After=network.target
+
+[Service]
+Type=simple
+User=openpod
+WorkingDirectory=/home/openpod/emulator
+ExecStart=/home/openpod/emulator/.venv/bin/python run.py \
+    --mode ble \
+    --transport "hci-socket:0" \
+    --log-level DEBUG \
+    --log-file /home/openpod/emulator/emulator.log
+Restart=on-failure
+RestartSec=5
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
+
+[Install]
+WantedBy=multi-user.target
