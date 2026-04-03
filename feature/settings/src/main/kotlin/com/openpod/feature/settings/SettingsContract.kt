@@ -3,7 +3,9 @@ package com.openpod.feature.settings
 import com.openpod.core.ui.mvi.UiEffect
 import com.openpod.core.ui.mvi.UiIntent
 import com.openpod.core.ui.mvi.UiState
+import com.openpod.model.glucose.GlucoseReading
 import com.openpod.model.glucose.GlucoseUnit
+import com.openpod.model.pod.PodState
 
 data class SettingsState(
     val diaHours: Double? = null,
@@ -24,6 +26,11 @@ data class SettingsState(
     val confirmPin: String = "",
     val pinChangeStep: Int = 0,
     val pinChangeError: String? = null,
+    // Pod diagnostics (debug builds)
+    val podState: PodState? = null,
+    val glucoseReading: GlucoseReading? = null,
+    // Deactivation
+    val isDeactivating: Boolean = false,
 ) : UiState
 
 sealed interface SettingsDialog {
@@ -33,6 +40,7 @@ sealed interface SettingsDialog {
     data object EditTargetGlucose : SettingsDialog
     data object EditGlucoseUnit : SettingsDialog
     data object ChangePin : SettingsDialog
+    data object ConfirmReplacePod : SettingsDialog
 }
 
 sealed interface SettingsIntent : UiIntent {
@@ -44,8 +52,11 @@ sealed interface SettingsIntent : UiIntent {
     data class SetBiometric(val enabled: Boolean) : SettingsIntent
     data class UpdatePinField(val field: Int, val value: String) : SettingsIntent
     data object ConfirmPinChange : SettingsIntent
+    data object ReplacePod : SettingsIntent
+    data object ConfirmReplacePod : SettingsIntent
 }
 
 sealed interface SettingsEffect : UiEffect {
     data class ShowToast(val message: String) : SettingsEffect
+    data object NavigateToPairing : SettingsEffect
 }

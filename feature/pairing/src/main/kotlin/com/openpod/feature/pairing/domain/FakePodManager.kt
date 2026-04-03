@@ -114,6 +114,11 @@ class FakePodManager @Inject constructor() : PodManager {
         return Result.success(Unit)
     }
 
+    override suspend fun deactivate(): Result<Unit> {
+        Timber.d("FakePodManager: Deactivating pod (simulated)")
+        return Result.success(Unit)
+    }
+
     private companion object {
         const val SCAN_DELAY_MS = 2000L
         const val CONNECT_DELAY_MS = 1000L

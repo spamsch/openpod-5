@@ -8,10 +8,12 @@ import com.openpod.core.database.entity.TargetGlucoseSegmentEntity
 import com.openpod.core.datastore.OpenPodPreferences
 import com.openpod.core.datastore.PinManager
 import com.openpod.core.ui.mvi.MviViewModel
+import com.openpod.domain.pod.PodManager
 import com.openpod.model.glucose.GlucoseUnit
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import timber.log.Timber
 import java.time.LocalTime
 import javax.inject.Inject
 
@@ -20,12 +22,14 @@ class SettingsViewModel @Inject constructor(
     private val profileDao: InsulinProfileDao,
     private val preferences: OpenPodPreferences,
     private val pinManager: PinManager,
+    private val podManager: PodManager,
 ) : MviViewModel<SettingsState, SettingsIntent, SettingsEffect>(
     initialState = SettingsState(),
 ) {
 
     init {
         observeSettings()
+        refreshPodStatus()
     }
 
     override fun handleIntent(intent: SettingsIntent) {
@@ -41,6 +45,8 @@ class SettingsViewModel @Inject constructor(
             is SettingsIntent.SetBiometric -> setBiometric(intent.enabled)
             is SettingsIntent.UpdatePinField -> onUpdatePinField(intent.field, intent.value)
             SettingsIntent.ConfirmPinChange -> onConfirmPinChange()
+            SettingsIntent.ReplacePod -> updateState { copy(activeDialog = SettingsDialog.ConfirmReplacePod) }
+            SettingsIntent.ConfirmReplacePod -> performDeactivation()
         }
     }
 
@@ -187,6 +193,61 @@ class SettingsViewModel @Inject constructor(
                     emitEffect(SettingsEffect.ShowToast("PIN changed"))
                 }
             }
+        }
+    }
+
+    private fun refreshPodStatus() {
+        launch {
+            podManager.getStatus()
+                .onSuccess { status ->
+                    updateState {
+                        copy(
+                            podState = com.openpod.model.pod.PodState(
+                                uid = status.uid,
+                                lotNumber = "",
+                                sequenceNumber = "",
+                                firmwareVersion = status.firmwareVersion,
+                                activatedAt = status.expiresAt.minusSeconds(80 * 3600),
+                                reservoirUnits = status.reservoir,
+                                connectionState = com.openpod.model.pod.PodConnectionState.CONNECTED,
+                                operatingMode = if (status.isActivated) com.openpod.model.pod.OperatingMode.AUTOMATIC else com.openpod.model.pod.OperatingMode.MANUAL,
+                                deliveryStatus = if (status.bolusInProgress) com.openpod.model.pod.DeliveryStatus.BOLUS_IN_PROGRESS else com.openpod.model.pod.DeliveryStatus.NORMAL,
+                                activeAlerts = emptyList(),
+                                lastSyncAt = java.time.Instant.now(),
+                                site = null,
+                            ),
+                            glucoseReading = status.glucoseMgDl?.let { mg ->
+                                val trendEntries = com.openpod.model.glucose.GlucoseTrend.entries
+                                val trendIndex = (status.glucoseTrend ?: 0).coerceIn(-2, 2) + 2
+                                com.openpod.model.glucose.GlucoseReading(
+                                    valueMgDl = mg,
+                                    timestamp = java.time.Instant.now(),
+                                    trend = trendEntries.getOrElse(trendIndex) { com.openpod.model.glucose.GlucoseTrend.STEADY },
+                                    source = com.openpod.model.glucose.GlucoseSource.CGM,
+                                )
+                            },
+                        )
+                    }
+                }
+                .onFailure {
+                    Timber.d("Pod status not available: %s", it.message)
+                }
+        }
+    }
+
+    private fun performDeactivation() {
+        launch {
+            updateState { copy(activeDialog = null, isDeactivating = true) }
+            podManager.deactivate()
+                .onSuccess {
+                    updateState { copy(isDeactivating = false, podState = null, glucoseReading = null) }
+                    emitEffect(SettingsEffect.NavigateToPairing)
+                }
+                .onFailure { e ->
+                    Timber.e(e, "Pod deactivation failed")
+                    updateState { copy(isDeactivating = false) }
+                    emitEffect(SettingsEffect.ShowToast("Deactivation failed: ${e.message}"))
+                }
         }
     }
 

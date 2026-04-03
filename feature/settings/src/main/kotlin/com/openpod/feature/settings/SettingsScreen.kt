@@ -45,6 +45,7 @@ import kotlin.system.exitProcess
 fun SettingsScreen(
     appDataResetter: AppDataResetter? = null,
     isDebugBuild: Boolean = false,
+    onNavigateToPairing: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -55,6 +56,7 @@ fun SettingsScreen(
     CollectEffects(viewModel.effect) { effect ->
         when (effect) {
             is SettingsEffect.ShowToast -> snackbarHostState.showSnackbar(effect.message)
+            SettingsEffect.NavigateToPairing -> onNavigateToPairing()
         }
     }
 
@@ -111,6 +113,21 @@ fun SettingsScreen(
             onUpdateField = { field, value -> viewModel.onIntent(SettingsIntent.UpdatePinField(field, value)) },
             onConfirm = { viewModel.onIntent(SettingsIntent.ConfirmPinChange) },
             onDismiss = { viewModel.onIntent(SettingsIntent.DismissDialog) },
+        )
+        SettingsDialog.ConfirmReplacePod -> AlertDialog(
+            onDismissRequest = { viewModel.onIntent(SettingsIntent.DismissDialog) },
+            title = { Text("Replace Pod?") },
+            text = { Text("This will deactivate your current pod. You will need to pair a new one.") },
+            confirmButton = {
+                TextButton(onClick = { viewModel.onIntent(SettingsIntent.ConfirmReplacePod) }) {
+                    Text("Deactivate", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.onIntent(SettingsIntent.DismissDialog) }) {
+                    Text("Cancel")
+                }
+            },
         )
         null -> {}
     }
@@ -200,8 +217,57 @@ fun SettingsScreen(
             }
         }
 
+        // ── Pod Management ─────────────────────────────────────────────
+        item { SettingsSectionHeader("Pod Management") }
+        item {
+            SettingsGroup {
+                SettingsRow(
+                    label = "Replace Pod",
+                    labelColor = MaterialTheme.colorScheme.error,
+                    onClick = { viewModel.onIntent(SettingsIntent.ReplacePod) },
+                )
+            }
+        }
+
         // ── Developer (debug builds only) ──────────────────────────────
         if (isDebugBuild) {
+            // Pod Data
+            item { SettingsSectionHeader("Pod Data") }
+            item {
+                SettingsGroup {
+                    val pod = state.podState
+                    SettingsRow(label = "UID", value = pod?.uid ?: "--")
+                    SettingsRowDivider()
+                    SettingsRow(label = "Firmware", value = pod?.firmwareVersion?.ifEmpty { "--" } ?: "--")
+                    SettingsRowDivider()
+                    SettingsRow(label = "Reservoir", value = pod?.let { "%.1f U".format(it.reservoirUnits) } ?: "--")
+                    SettingsRowDivider()
+                    SettingsRow(label = "Connection", value = pod?.connectionState?.name ?: "--")
+                    SettingsRowDivider()
+                    SettingsRow(label = "Mode", value = pod?.operatingMode?.name ?: "--")
+                    SettingsRowDivider()
+                    SettingsRow(label = "Delivery", value = pod?.deliveryStatus?.name ?: "--")
+                    SettingsRowDivider()
+                    SettingsRow(label = "Activated", value = pod?.activatedAt?.toString() ?: "--")
+                    SettingsRowDivider()
+                    SettingsRow(label = "Last Sync", value = pod?.lastSyncAt?.toString() ?: "--")
+                }
+            }
+
+            // CGM Data
+            item { SettingsSectionHeader("CGM Data") }
+            item {
+                SettingsGroup {
+                    val glucose = state.glucoseReading
+                    SettingsRow(label = "Glucose", value = glucose?.let { "${it.valueMgDl} mg/dL" } ?: "--")
+                    SettingsRowDivider()
+                    SettingsRow(label = "Trend", value = glucose?.trend?.name ?: "--")
+                    SettingsRowDivider()
+                    SettingsRow(label = "Timestamp", value = glucose?.timestamp?.toString() ?: "--")
+                }
+            }
+
+            // Developer
             item { SettingsSectionHeader(stringResource(R.string.settings_section_developer)) }
             item {
                 SettingsGroup {

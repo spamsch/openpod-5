@@ -322,6 +322,14 @@ class EmulatorPodManager @Inject constructor(
         }
     }
 
+    override suspend fun deactivate(): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            Timber.i("EmulatorPodManager: Deactivating pod")
+            sendEncryptedCommand(byteArrayOf(CMD_DEACTIVATE)).getOrThrow()
+            Timber.i("EmulatorPodManager: Pod deactivated")
+        }
+    }
+
     // -- Pairing flow --
 
     private suspend fun performPairing() {
@@ -478,6 +486,7 @@ class EmulatorPodManager @Inject constructor(
         private const val CMD_GET_STATUS: Byte = 0x08
         private const val CMD_SEND_BOLUS: Byte = 0x09
         private const val CMD_STOP_PROGRAM: Byte = 0x0A
+        private const val CMD_DEACTIVATE: Byte = 0x0B
 
         private const val PRIME_POLL_INTERVAL_MS = 1000L
         private const val MAX_PRIME_POLLS = 15

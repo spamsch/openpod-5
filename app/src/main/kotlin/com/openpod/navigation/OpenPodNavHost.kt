@@ -164,6 +164,7 @@ fun OpenPodNavHost(
                 SettingsScreen(
                     appDataResetter = viewModel.appDataResetter,
                     isDebugBuild = BuildConfig.DEBUG,
+                    onNavigateToPairing = { navController.navigate("pairing") },
                 )
             }
 

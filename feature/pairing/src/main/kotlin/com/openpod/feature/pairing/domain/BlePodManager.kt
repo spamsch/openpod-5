@@ -184,11 +184,13 @@ class BlePodManager @Inject constructor(
     }
 
     override suspend fun insertCannula(): Flow<ActivationProgress> = flow {
+        val utcEpoch = Instant.now().epochSecond
         val substeps = listOf(
             "Programming basal" to "S1.3=0064",       // basal data
             "Programming alerts" to "S1.1=cancel_loc", // cancel/LOC alerts
             "Inserting cannula" to "S1.4=1",
             "Enabling algorithm" to "S1.5=1",
+            "Setting UTC time" to "S255.2=$utcEpoch",  // first AID setup command
         )
 
         for ((index, step) in substeps.withIndex()) {
@@ -265,6 +267,21 @@ class BlePodManager @Inject constructor(
             Timber.i("BlePodManager: Cancelling bolus")
             sendEncryptedRhp("S2.1=1").getOrThrow()
             Timber.i("BlePodManager: Bolus cancelled")
+        }
+    }
+
+    override suspend fun deactivate(): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            Timber.i("BlePodManager: Deactivating pod (S2.6=1)")
+            sendEncryptedRhp("S2.6=1").getOrThrow()
+            connection?.disconnect()
+            connection = null
+            selectedBlePod = null
+            sessionReady = false
+            txNonceCounter = 0
+            rxNonceCounter = 0
+            nextCommandId = 1
+            Timber.i("BlePodManager: Pod deactivated, session cleared")
         }
     }
 

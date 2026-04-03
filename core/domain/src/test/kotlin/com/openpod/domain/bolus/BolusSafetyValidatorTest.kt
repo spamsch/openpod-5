@@ -44,6 +44,7 @@ class BolusSafetyValidatorTest {
         override suspend fun getStatus(): Result<PodActivationResult> = statusResult
         override suspend fun sendBolus(units: Double) = Result.success(Unit)
         override suspend fun cancelBolus() = Result.success(Unit)
+        override suspend fun deactivate() = Result.success(Unit)
     }
 
     private fun validatorWith(status: Result<PodActivationResult> = Result.success(healthyStatus)): BolusSafetyValidator {

@@ -105,6 +105,15 @@ interface PodManager {
      * Cancel an in-progress bolus delivery.
      */
     suspend fun cancelBolus(): Result<Unit>
+
+    /**
+     * Deactivate the current pod and clear the session.
+     *
+     * Sends the deactivation command (S2.6=1) which resets the pod to
+     * factory state and clears the Long-Term Key. After this call,
+     * a new pod must be paired.
+     */
+    suspend fun deactivate(): Result<Unit>
 }
 
 /**

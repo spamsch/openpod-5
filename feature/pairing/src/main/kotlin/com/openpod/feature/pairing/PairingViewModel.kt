@@ -129,6 +129,7 @@ data class PairingState(
             ActivationSubStep("Pod started", SubStepStatus.PENDING),
             ActivationSubStep("Second prime complete", SubStepStatus.PENDING),
             ActivationSubStep("Algorithm enabled", SubStepStatus.PENDING),
+            ActivationSubStep("UTC time set", SubStepStatus.PENDING),
             ActivationSubStep("Final status verified", SubStepStatus.PENDING),
         )
     }
