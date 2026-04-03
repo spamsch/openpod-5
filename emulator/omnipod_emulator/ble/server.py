@@ -222,9 +222,11 @@ class OmnipodBleServer:
         # Profile ID = 10 in UUID data to pass scan callback validation
         mfr_data = company_id + padding + bytes([pod_id_adj, alarm_code, alert_code])
 
+        # NOTE: BLE legacy advertising payload is limited to 31 bytes.
+        # The device name is carried in the scan response instead to stay
+        # within that budget (UUID=18 + mfr_data=11 + headers = 29 bytes).
         advertising_data = bytes(
             AdvertisingData([
-                (AdvertisingData.COMPLETE_LOCAL_NAME, bytes(DEVICE_NAME, 'utf-8')),
                 (
                     AdvertisingData.INCOMPLETE_LIST_OF_128_BIT_SERVICE_CLASS_UUIDS,
                     bytes(BumbleUUID(scan_uuid)),
