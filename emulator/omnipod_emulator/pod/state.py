@@ -80,7 +80,8 @@ class PodState:
     cannula_inserted: bool = False
     deactivated: bool = False
     prime_start_time: float = 0.0
-    prime_duration: float = 55.0  # Real Omnipod 5 priming takes ~55 seconds
+    prime_duration: float = 55.0     # Real Omnipod 5 priming takes ~55 seconds
+    bolus_pulse_rate: float = 1.0   # Seconds per bolus pulse (real pod: ~3s)
     basal_rate: float = 1.0
     basal_program_raw: bytes = b""
     bolus_in_progress: bool = False
@@ -243,9 +244,9 @@ class PodState:
             if self._last_bolus_pulse_time == 0.0:
                 self._last_bolus_pulse_time = now
             bolus_elapsed = now - self._last_bolus_pulse_time
-            max_pulses = int(bolus_elapsed / self.BOLUS_PULSE_INTERVAL)
+            max_pulses = int(bolus_elapsed / self.bolus_pulse_rate)
             if max_pulses > 0:
-                self._last_bolus_pulse_time += max_pulses * self.BOLUS_PULSE_INTERVAL
+                self._last_bolus_pulse_time += max_pulses * self.bolus_pulse_rate
                 bolus_delivered = min(
                     max_pulses * self.PULSE_UNITS,
                     self.bolus_remaining_units,

@@ -9,6 +9,11 @@ android {
 
     defaultConfig {
         applicationId = "com.openpod"
+        buildConfigField(
+            "boolean",
+            "SKIP_ONBOARDING",
+            project.findProperty("skipOnboarding")?.toString() ?: "false",
+        )
     }
 
     buildFeatures {

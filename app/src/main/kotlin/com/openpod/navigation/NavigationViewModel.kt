@@ -2,13 +2,16 @@ package com.openpod.navigation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.openpod.BuildConfig
 import com.openpod.core.datastore.AppDataResetter
 import com.openpod.core.datastore.OpenPodPreferences
+import com.openpod.core.datastore.PinManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
 
@@ -22,9 +25,28 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class NavigationViewModel @Inject constructor(
-    preferences: OpenPodPreferences,
+    private val preferences: OpenPodPreferences,
+    private val pinManager: PinManager,
     val appDataResetter: AppDataResetter,
 ) : ViewModel() {
+
+    init {
+        if (BuildConfig.SKIP_ONBOARDING) {
+            viewModelScope.launch {
+                Timber.i("Navigation: SKIP_ONBOARDING flag set — seeding test defaults")
+                preferences.setOnboardingComplete(true)
+                if (!pinManager.hasPin()) {
+                    pinManager.storePin(DEFAULT_TEST_PIN)
+                    Timber.i("Navigation: Test PIN set to %s", DEFAULT_TEST_PIN)
+                }
+            }
+        }
+    }
+
+    companion object {
+        /** Default PIN stored when SKIP_ONBOARDING is enabled. */
+        const val DEFAULT_TEST_PIN = "3151"
+    }
 
     /**
      * Whether onboarding has been completed.
@@ -32,11 +54,15 @@ class NavigationViewModel @Inject constructor(
      * - `null` — still loading (show nothing)
      * - `false` — show onboarding
      * - `true` — show dashboard
+     *
+     * When SKIP_ONBOARDING is set, always returns true regardless of
+     * stored preference to avoid a race with the init coroutine.
      */
     val isOnboardingComplete: StateFlow<Boolean?> = preferences.isOnboardingComplete()
         .map { complete ->
-            Timber.d("Navigation: onboarding complete = %s", complete)
-            complete
+            val effective = complete || BuildConfig.SKIP_ONBOARDING
+            Timber.d("Navigation: onboarding complete = %s (skip=%s)", effective, BuildConfig.SKIP_ONBOARDING)
+            effective
         }
         .stateIn(
             scope = viewModelScope,

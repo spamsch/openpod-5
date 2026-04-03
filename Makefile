@@ -21,8 +21,8 @@ help: ## Show this help
 build: ## Build debug APK
 	$(GRADLE) assembleDebug
 
-install: ## Install debug APK (real BLE)
-	$(GRADLE) :app:installDebug -PuseBle=true
+install: ## Install debug APK (real BLE, skip onboarding)
+	$(GRADLE) :app:installDebug -PuseBle=true -PskipOnboarding=true
 
 install-emu: ## Install debug APK with emulator mode
 	$(GRADLE) :app:installDebug -PuseEmulator=true

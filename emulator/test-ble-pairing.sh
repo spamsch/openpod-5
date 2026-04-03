@@ -98,6 +98,11 @@ fi
 
 # ── 3. Launch app ─────────────────────────────────────────────────
 
+info "Granting BLE permissions..."
+adb shell pm grant "$PACKAGE" android.permission.BLUETOOTH_SCAN
+adb shell pm grant "$PACKAGE" android.permission.BLUETOOTH_CONNECT
+adb shell pm grant "$PACKAGE" android.permission.ACCESS_FINE_LOCATION
+
 info "Launching app..."
 adb shell am force-stop "$PACKAGE"
 adb logcat -c
