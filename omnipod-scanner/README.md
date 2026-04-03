@@ -4,8 +4,8 @@ Minimal Android app that scans for Omnipod BLE devices and dumps their raw adver
 
 ## Detection methods
 
-- **Real pod**: 16-bit service UUID `0x4024` (standard Bluetooth base form)
-- **Emulator**: 128-bit TWI SDK UUIDs with prefix `ce1f923d-c539-48ea-7300-0a`
+- **Real pod**: 128-bit service UUID `00004024-0000-1000-8000-00805f9b34fb`
+- **Emulator**: 128-bit UUIDs with prefix `ce1f923d-c539-48ea-7300-0a`
 - **Insulet company ID**: `0x0360` (864) in manufacturer-specific data
 
 For real pods, the app decodes the 9 service UUIDs that encode pod ID, lot number, and sequence number.
