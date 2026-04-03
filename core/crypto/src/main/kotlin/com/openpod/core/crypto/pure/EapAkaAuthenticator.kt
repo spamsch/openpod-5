@@ -1,6 +1,5 @@
 package com.openpod.core.crypto.pure
 
-import java.security.MessageDigest
 import java.security.SecureRandom
 
 /**
@@ -116,11 +115,8 @@ class EapAkaAuthenticator(ltk: ByteArray) {
             return false
         }
 
-        // Derive MSK = SHA-256(CK || IK)[0:16]
-        val digest = MessageDigest.getInstance("SHA-256")
-        digest.update(ck!!)
-        digest.update(ik!!)
-        msk = digest.digest().copyOfRange(0, 16)
+        // Encryption key = CK directly (per TWI SDK behaviour)
+        msk = ck!!.copyOf()
 
         state = EapAkaState.AUTHENTICATED
         return true
