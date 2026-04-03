@@ -167,6 +167,7 @@ class BolusViewModelTest {
 
         vm.onIntent(BolusIntent.UpdateUnits("3.00"))
         vm.onIntent(BolusIntent.NextToReview)
+        advanceUntilIdle()
 
         assertThat(vm.state.value.phase).isEqualTo(BolusPhase.REVIEW)
     }
@@ -365,6 +366,7 @@ class BolusViewModelTest {
 
         vm.onIntent(BolusIntent.UpdateUnits("3.00"))
         vm.onIntent(BolusIntent.NextToReview)
+        advanceUntilIdle()
         assertThat(vm.state.value.phase).isEqualTo(BolusPhase.REVIEW)
 
         vm.onIntent(BolusIntent.BackToEntry)
