@@ -26,16 +26,11 @@ import javax.inject.Inject
  * [PodManager] implementation that connects to the Python pod emulator
  * over a raw TCP socket.
  *
- * Uses [CryptoManager] (pure-Kotlin crypto) for ECDH pairing, EAP-AKA
- * authentication, and AES-CCM message encryption.
- * The emulator runs a `TcpProtocolServer` on port 9996 with 4-byte
- * length-prefixed framing.
+ * Uses the same text RHP commands and TWICommand framing as [BlePodManager],
+ * but over TCP instead of BLE. This ensures the emulator exercises the same
+ * protocol stack as real hardware.
  *
  * @param cryptoManager The crypto manager for all cryptographic operations.
- * @param host          Emulator host address. Defaults to `10.0.2.2`
- *                      (Android emulator's host loopback). Use the
- *                      machine's LAN IP for physical devices.
- * @param port          Emulator TCP port. Defaults to `9996`.
  */
 class EmulatorPodManager @Inject constructor(
     private val cryptoManager: CryptoManager,
@@ -60,6 +55,9 @@ class EmulatorPodManager @Inject constructor(
     /** Encryption nonce counters (matching emulator's ProtocolSession). */
     private var txNonceCounter: Long = 0
     private var rxNonceCounter: Long = 0
+
+    /** TWICommand sequence number, incremented per RHP command. */
+    private var nextCommandId: Int = 1
 
     /** True after EAP-AKA completes — safe to send encrypted commands. */
     @Volatile
@@ -148,20 +146,16 @@ class EmulatorPodManager @Inject constructor(
     }
 
     override suspend fun prime(): Flow<PrimeProgress> = flow {
-        Timber.i("EmulatorPodManager: Sending PRIME_POD command")
+        Timber.i("EmulatorPodManager: Sending prime command (S1.2=1)")
 
-        val primeCmd = byteArrayOf(CMD_PRIME_POD)
-        sendEncryptedCommand(primeCmd).getOrThrow()
+        sendEncryptedRhp("S1.2=1").getOrThrow()
 
-        // Poll GET_STATUS until pod reports priming complete,
-        // matching the real Omnipod 5 behavior (~1s interval, up to
-        // MAX_PRIME_POLLS retries).
         for (attempt in 1..MAX_PRIME_POLLS) {
             delay(PRIME_POLL_INTERVAL_MS)
 
-            val statusResp = sendEncryptedCommand(byteArrayOf(CMD_GET_STATUS)).getOrThrow()
-            // Response: [cmd_type(1), status(1), flags(1), alert_mask(1), running_state(1), ...]
-            val runningState = if (statusResp.size > 4) statusResp[4].toInt() and 0xFF else 0
+            val statusText = sendEncryptedRhp("G1.6").getOrThrow()
+            val fields = parseStatusFields(statusText)
+            val runningState = fields.getOrNull(2)?.toIntOrNull() ?: 0
 
             Timber.i(
                 "EmulatorPodManager: Prime poll %d/%d, running_state=%d",
@@ -183,23 +177,20 @@ class EmulatorPodManager @Inject constructor(
     }
 
     override suspend fun insertCannula(): Flow<ActivationProgress> = flow {
+        val utcEpoch = Instant.now().epochSecond
         val substeps = listOf(
-            "Programming basal" to CMD_PROGRAM_BASAL,
-            "Inserting cannula" to CMD_INSERT_CANNULA,
-            "Enabling algorithm" to CMD_ENABLE_ALGORITHM,
+            "Programming basal" to "S1.3=0064",
+            "Programming alerts" to "S1.1=cancel_loc",
+            "Inserting cannula" to "S1.4=1",
+            "Enabling algorithm" to "S1.5=1",
+            "Setting UTC time" to "S255.2=$utcEpoch",
         )
 
         for ((index, step) in substeps.withIndex()) {
-            val (label, cmdByte) = step
-            Timber.i("EmulatorPodManager: Sending %s command", label)
+            val (label, rhpCmd) = step
+            Timber.i("EmulatorPodManager: %s (%s)", label, rhpCmd)
 
-            val cmd = if (cmdByte == CMD_PROGRAM_BASAL) {
-                // Basal program payload: 1.0 U/hr as fixed-point (100 = 1.0 * 100)
-                byteArrayOf(cmdByte, 0x00, 0x64)
-            } else {
-                byteArrayOf(cmdByte)
-            }
-            sendEncryptedCommand(cmd)
+            sendEncryptedRhp(rhpCmd).getOrThrow()
 
             delay(ACTIVATION_STEP_DELAY_MS)
             val percent = (index + 1).toFloat() / substeps.size
@@ -211,69 +202,24 @@ class EmulatorPodManager @Inject constructor(
     override suspend fun getStatus(): Result<PodActivationResult> = withContext(Dispatchers.IO) {
         runCatching {
             check(sessionReady) { "Session not ready" }
-            Timber.i("EmulatorPodManager: Querying pod status")
+            Timber.i("EmulatorPodManager: Querying status (G1.6)")
 
-            val response = sendEncryptedCommand(byteArrayOf(CMD_GET_STATUS)).getOrThrow()
+            val statusText = sendEncryptedRhp("G1.6").getOrThrow()
+            val fields = parseStatusFields(statusText)
 
-            // Parse response: [command_type(1), status(1), payload...]
-            // Payload from PodState.encode_status():
-            //   flags(1), alert_mask(1), running_state(1), reservoir_pulses(4 BE),
-            //   unique_id(4), minutes(2), bolus_pulses(2), total_pulses(2),
-            //   glucose_mg_dl(2 BE), glucose_trend(1 signed), iob_hundredths(2 BE)
-            val payload = response.copyOfRange(2, response.size)
-
-            val flags = if (payload.isNotEmpty()) payload[0].toInt() and 0xFF else 0
+            // Status format: flags;alert_mask;running_state;reservoir_pulses;uid;
+            //   minutes;bolus_pulses;total_pulses;glucose;trend;iob_hundredths;bolus_total_pulses
+            val flags = fields.getOrNull(0)?.toIntOrNull(16) ?: 0
             val isActivated = flags and 0x01 != 0
-
-            val reservoirPulses = if (payload.size >= 7) {
-                ((payload[3].toInt() and 0xFF) shl 24) or
-                    ((payload[4].toInt() and 0xFF) shl 16) or
-                    ((payload[5].toInt() and 0xFF) shl 8) or
-                    (payload[6].toInt() and 0xFF)
-            } else {
-                4000
-            }
-
-            val minutes = if (payload.size >= 13) {
-                ((payload[11].toInt() and 0xFF) shl 8) or (payload[12].toInt() and 0xFF)
-            } else {
-                0
-            }
-
-            // Extended fields (glucose + IOB) at offsets 17-21
-            val glucoseMgDl = if (payload.size >= 19) {
-                ((payload[17].toInt() and 0xFF) shl 8) or (payload[18].toInt() and 0xFF)
-            } else {
-                null
-            }
-
-            val glucoseTrend = if (payload.size >= 20) {
-                payload[19].toInt() // signed byte
-            } else {
-                null
-            }
-
-            val iobHundredths = if (payload.size >= 22) {
-                ((payload[20].toInt() and 0xFF) shl 8) or (payload[21].toInt() and 0xFF)
-            } else {
-                null
-            }
-
-            // Bolus total pulses at offset 22-23
-            val bolusTotalPulses = if (payload.size >= 24) {
-                ((payload[22].toInt() and 0xFF) shl 8) or (payload[23].toInt() and 0xFF)
-            } else {
-                0
-            }
-
-            // Bolus remaining pulses at offset 13-14
-            val bolusRemainingPulses = if (payload.size >= 15) {
-                ((payload[13].toInt() and 0xFF) shl 8) or (payload[14].toInt() and 0xFF)
-            } else {
-                0
-            }
-
             val bolusInProgress = flags and 0x08 != 0
+            val reservoirPulses = fields.getOrNull(3)?.toIntOrNull() ?: 4000
+            val uid = fields.getOrNull(4) ?: "EMULATOR"
+            val minutes = fields.getOrNull(5)?.toIntOrNull() ?: 0
+            val bolusPulses = fields.getOrNull(6)?.toIntOrNull() ?: 0
+            val glucoseMgDl = fields.getOrNull(8)?.toIntOrNull()
+            val glucoseTrend = fields.getOrNull(9)?.toIntOrNull()
+            val iobHundredths = fields.getOrNull(10)?.toIntOrNull()
+            val bolusTotalPulses = fields.getOrNull(11)?.toIntOrNull() ?: 0
 
             val expiresAt = if (isActivated && minutes > 0) {
                 Instant.now().plusSeconds((80 * 60 - minutes).toLong() * 60)
@@ -282,7 +228,7 @@ class EmulatorPodManager @Inject constructor(
             }
 
             PodActivationResult(
-                uid = "EMULATOR",
+                uid = uid,
                 reservoir = reservoirPulses * 0.05,
                 expiresAt = expiresAt,
                 firmwareVersion = "3.1.6",
@@ -294,7 +240,7 @@ class EmulatorPodManager @Inject constructor(
                 basalRate = 1.0,
                 bolusInProgress = bolusInProgress,
                 bolusTotalUnits = bolusTotalPulses * 0.05,
-                bolusRemainingUnits = bolusRemainingPulses * 0.05,
+                bolusRemainingUnits = bolusPulses * 0.05,
             )
         }
     }
@@ -304,28 +250,23 @@ class EmulatorPodManager @Inject constructor(
             require(units in 0.05..30.0) { "Bolus must be 0.05–30.0 U, got $units" }
             val pulses = (units / 0.05).toInt()
             Timber.i("EmulatorPodManager: Sending bolus %.2fU (%d pulses)", units, pulses)
-            val cmd = byteArrayOf(
-                CMD_SEND_BOLUS,
-                (pulses shr 8).toByte(),
-                (pulses and 0xFF).toByte(),
-            )
-            sendEncryptedCommand(cmd).getOrThrow()
+            sendEncryptedRhp("S2.0=$pulses").getOrThrow()
             Timber.i("EmulatorPodManager: Bolus command accepted")
         }
     }
 
     override suspend fun cancelBolus(): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
-            Timber.i("EmulatorPodManager: Cancelling bolus")
-            sendEncryptedCommand(byteArrayOf(CMD_STOP_PROGRAM)).getOrThrow()
+            Timber.i("EmulatorPodManager: Cancelling bolus (S2.1=1)")
+            sendEncryptedRhp("S2.1=1").getOrThrow()
             Timber.i("EmulatorPodManager: Bolus cancelled")
         }
     }
 
     override suspend fun deactivate(): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
-            Timber.i("EmulatorPodManager: Deactivating pod")
-            sendEncryptedCommand(byteArrayOf(CMD_DEACTIVATE)).getOrThrow()
+            Timber.i("EmulatorPodManager: Deactivating pod (S2.6=1)")
+            sendEncryptedRhp("S2.6=1").getOrThrow()
             Timber.i("EmulatorPodManager: Pod deactivated")
         }
     }
@@ -402,35 +343,72 @@ class EmulatorPodManager @Inject constructor(
         Timber.i("EmulatorPodManager: EAP-AKA authentication complete, session key established")
     }
 
-    // -- Encrypted command helpers --
+    // -- Encrypted text RHP commands via TWICommand --
 
-    private suspend fun sendEncryptedCommand(plaintext: ByteArray): Result<ByteArray> =
+    /**
+     * Send a text RHP command wrapped in TWICommand, encrypted with AES-CCM.
+     *
+     * Uses the same protocol stack as [BlePodManager.sendEncryptedRhp]:
+     *   1. Wrap RHP text in TWICommand frame (with CRC-16)
+     *   2. Encrypt with AES-CCM
+     *   3. Send via TCP (instead of BLE)
+     *   4. Read, decrypt, parse TWICommand response
+     *
+     * @param rhpText The RHP command string (e.g., "GV", "G1.6", "S2.0=20").
+     * @return The RHP response text from the pod.
+     */
+    private suspend fun sendEncryptedRhp(rhpText: String): Result<String> =
         commandMutex.withLock {
             withContext(Dispatchers.IO) {
                 runCatching {
-                    // Build TX nonce: counter(8 BE) || suffix(4 random) || 0x00
+                    val cmdId = nextCommandId++
+
+                    Timber.d("EmulatorPodManager: Sending RHP: %s (cmdId=%d)", rhpText, cmdId)
+
+                    // 1. Wrap in TWICommand
+                    val twi = TwiCommandFrame(
+                        commandBytes = rhpText,
+                        commandId = cmdId,
+                        lastMessage = true,
+                        messageType = TwiCommandFrame.MESSAGE_TYPE_ENCRYPTED,
+                    )
+                    val twiBytes = twi.serialize()
+
+                    // 2. Encrypt
                     val txSuffix = ByteArray(4).also { SecureRandom().nextBytes(it) }
                     val txNonce = buildNonce(txNonceCounter, txSuffix)
                     txNonceCounter++
 
-                    val ciphertext = cryptoManager.encrypt(plaintext, ByteArray(0), txNonce).getOrThrow()
+                    val ciphertext = cryptoManager.encrypt(twiBytes, ByteArray(0), txNonce).getOrThrow()
+
+                    // 3. Send via TCP
                     val msg = byteArrayOf(MSG_ENCRYPTED) + txSuffix + ciphertext
                     sendFrame(msg)
 
-                    // Read encrypted response
+                    // 4. Read encrypted response
                     val response = readFrame()
                     check(response[0] == MSG_ENCRYPTED) {
                         "Expected MSG_ENCRYPTED response, got 0x${response[0].toUByte().toString(16)}"
                     }
+
+                    // 5. Decrypt
                     val rxSuffix = response.copyOfRange(1, 5)
                     val rxCiphertext = response.copyOfRange(5, response.size)
                     val rxNonce = buildNonce(rxNonceCounter, rxSuffix)
                     rxNonceCounter++
 
-                    cryptoManager.decrypt(rxCiphertext, ByteArray(0), rxNonce).getOrThrow()
+                    val plaintext = cryptoManager.decrypt(rxCiphertext, ByteArray(0), rxNonce).getOrThrow()
+
+                    // 6. Parse TWICommand response
+                    val respTwi = TwiCommandFrame.parse(plaintext)
+                    Timber.d("EmulatorPodManager: RHP response: %s", respTwi.commandBytes)
+
+                    respTwi.commandBytes
                 }
             }
         }
+
+    // -- Helpers --
 
     /** Build a 13-byte AES-CCM nonce: counter(8 BE) || suffix(4) || 0x00 */
     private fun buildNonce(counter: Long, suffix: ByteArray): ByteArray {
@@ -439,6 +417,19 @@ class EmulatorPodManager @Inject constructor(
         buf.put(suffix, 0, 4)
         buf.put(0)
         return buf.array()
+    }
+
+    /**
+     * Parse semicolon-separated status fields from a "1.6=..." response.
+     * Strips the "1.6=" prefix if present.
+     */
+    private fun parseStatusFields(rhpResponse: String): List<String> {
+        val value = if (rhpResponse.startsWith("1.6=")) {
+            rhpResponse.removePrefix("1.6=")
+        } else {
+            rhpResponse
+        }
+        return value.split(";")
     }
 
     // -- TCP framing --
@@ -477,16 +468,6 @@ class EmulatorPodManager @Inject constructor(
         private const val PAIR_POD_CONF_RESPONSE: Byte = 0x03
         private const val PAIR_COMPLETE: Byte = 0x04
         private const val PAIR_ALREADY_PAIRED: Byte = 0x05
-
-        // RHP command types (must match emulator protocol/commands.py)
-        private const val CMD_PRIME_POD: Byte = 0x04
-        private const val CMD_PROGRAM_BASAL: Byte = 0x05
-        private const val CMD_INSERT_CANNULA: Byte = 0x06
-        private const val CMD_ENABLE_ALGORITHM: Byte = 0x07
-        private const val CMD_GET_STATUS: Byte = 0x08
-        private const val CMD_SEND_BOLUS: Byte = 0x09
-        private const val CMD_STOP_PROGRAM: Byte = 0x0A
-        private const val CMD_DEACTIVATE: Byte = 0x0B
 
         private const val PRIME_POLL_INTERVAL_MS = 1000L
         private const val MAX_PRIME_POLLS = 15
