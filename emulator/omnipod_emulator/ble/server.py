@@ -76,6 +76,7 @@ class OmnipodBleServer:
         self._tp_classic_characteristic: Characteristic | None = None
         self._tp_fast_characteristic: Characteristic | None = None
         self._paired_controller_id: bytes | None = None
+        self._is_advertising: bool = False
 
         logger.info(
             "BLE server created: transport=%s", self._transport_name
@@ -198,9 +199,30 @@ class OmnipodBleServer:
             "Paired controller ID set: %s — will use paired UUIDs on next advertising restart",
             ctrl_id.hex(),
         )
+        # If not currently connected, restart advertising with paired UUID.
+        # If connected, the next _on_disconnection will pick it up.
+        if self._connection is None:
+            asyncio.get_event_loop().create_task(self._restart_advertising())
+
+    async def _stop_advertising(self) -> None:
+        """Stop BLE advertising (we have an active connection)."""
+        if not self._is_advertising:
+            return
+        assert self._device is not None
+        await self._device.stop_advertising()
+        self._is_advertising = False
+        logger.info("Advertising stopped")
+
+    async def _restart_advertising(self) -> None:
+        """Stop then start advertising (e.g. after UUID change)."""
+        await self._stop_advertising()
+        await self._start_advertising()
 
     async def _start_advertising(self) -> None:
         """Start BLE advertising with the appropriate scan UUID."""
+        if self._is_advertising:
+            logger.debug("Already advertising, skipping")
+            return
         assert self._device is not None
 
         if self._paired_controller_id is not None:
@@ -248,10 +270,11 @@ class OmnipodBleServer:
         )
 
         await self._device.start_advertising(
-            auto_restart=True,
+            auto_restart=False,
             advertising_data=advertising_data,
             scan_response_data=scan_response_data,
         )
+        self._is_advertising = True
         logger.info("Advertising started")
 
     def _on_connection(self, connection: Connection) -> None:
@@ -261,11 +284,13 @@ class OmnipodBleServer:
             "BLE connection established: peer=%s",
             connection.peer_address,
         )
+        asyncio.get_event_loop().create_task(self._stop_advertising())
 
     def _on_disconnection(self, reason: int) -> None:
         """Handle BLE disconnection."""
         self._connection = None
         logger.info("BLE disconnection: reason=%d", reason)
+        asyncio.get_event_loop().create_task(self._start_advertising())
 
     def _on_cmd_read(self, connection: Connection | None) -> bytes:
         """Handle a read on the CMD characteristic (not normally used)."""
