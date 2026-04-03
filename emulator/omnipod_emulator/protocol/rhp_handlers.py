@@ -225,6 +225,7 @@ class RhpHandlers:
         # TODO: Replace with exact wire-format sequences once captured from
         # real traffic or further decompilation. These type 1 mappings are
         # NOT wire-compatible with the real protocol.
+        d.register_get(1, 6, self._handle_get_pod_status)        # Pod status (text)
         d.register_set(1, 0, self._handle_set_unique_id)       # Set pod UID
         d.register_set(1, 1, self._handle_program_alerts)      # Program alerts
         d.register_set(1, 2, self._handle_prime_pod)            # Prime pod
@@ -424,6 +425,41 @@ class RhpHandlers:
         self._activation_state = ActivationState.PRIMED
         logger.info("S1.2: priming started (%.0fs duration)", self._pod.prime_duration)
         return RhpResponse.success("", 1, 2)
+
+    def _handle_get_pod_status(self, _req: RhpRequest) -> RhpResponse:
+        """G1.6 -> Pod status as semicolon-delimited text.
+
+        Format: flags;alert_mask;running_state;reservoir_pulses;uid;
+                minutes;bolus_pulses;total_pulses;glucose;trend;
+                iob_hundredths;bolus_total_pulses
+        """
+        self._pod.tick()
+        rs = self._pod.running_state
+
+        flags = 0x01 if self._pod.activated else 0x00
+        if self._pod.bolus_remaining_units > 0:
+            flags |= 0x08
+
+        uid_hex = self._pod.unique_id[:4].hex()
+        minutes = self._pod.minutes_since_activation
+        reservoir = int(self._pod.reservoir_units / 0.05)
+        bolus_pulses = int(self._pod.bolus_remaining_units / 0.05)
+        total_pulses = int(self._pod.total_insulin_delivered / 0.05)
+
+        glucose = self._pod.glucose_mg_dl or 0
+        trend = self._pod.glucose_trend or 0
+        iob = int(self._pod.iob_units * 100)
+
+        value = (
+            f"{flags:02x};0000;{rs.value};"
+            f"{reservoir};{uid_hex};{minutes};"
+            f"{bolus_pulses};{total_pulses};"
+            f"{glucose};{trend};{iob};0"
+        )
+
+        logger.info("G1.6: running_state=%s (%d), activation=%s",
+                     rs.name, rs.value, self._activation_state.name)
+        return RhpResponse.attribute("", 1, 6, value)
 
     def _handle_program_basal(self, req: RhpRequest) -> RhpResponse:
         """S1.3=<basal_data> -> Program basal schedule."""

@@ -21,41 +21,52 @@ data class TwiCommandFrame(
 ) {
     fun serialize(): ByteArray {
         val payload = commandBytes.toByteArray(Charsets.UTF_8)
-        val buf = ByteBuffer.allocate(HEADER_SIZE + payload.size)
-        buf.order(ByteOrder.BIG_ENDIAN)
+        val frame = ByteBuffer.allocate(HEADER_SIZE + payload.size)
+        frame.order(ByteOrder.BIG_ENDIAN)
 
         // commandId as signed short (2 bytes BE)
-        buf.putShort(commandId.toShort())
+        frame.putShort(commandId.toShort())
 
         // flags: bit 0 = lastMessage, bits 1-2 = messageType
         var flags = 0
         if (lastMessage) flags = flags or 0x01
         flags = flags or ((messageType and 0x03) shl 1)
-        buf.put(flags.toByte())
+        frame.put(flags.toByte())
 
         // notificationNumber as 3 bytes BE (take last 3 bytes of int)
-        buf.put(((notificationNumber shr 16) and 0xFF).toByte())
-        buf.put(((notificationNumber shr 8) and 0xFF).toByte())
-        buf.put((notificationNumber and 0xFF).toByte())
+        frame.put(((notificationNumber shr 16) and 0xFF).toByte())
+        frame.put(((notificationNumber shr 8) and 0xFF).toByte())
+        frame.put((notificationNumber and 0xFF).toByte())
 
         // UTF-8 payload
-        buf.put(payload)
+        frame.put(payload)
 
+        val frameBytes = frame.array()
+
+        // Append CRC-16/CCITT (polynomial 0x1021, init 0xFFFF)
+        val crc = crc16Ccitt(frameBytes)
+        val buf = ByteBuffer.allocate(frameBytes.size + 2)
+        buf.put(frameBytes)
+        buf.putShort(crc.toShort())
         return buf.array()
     }
 
     companion object {
         const val HEADER_SIZE = 6
+        const val CRC_SIZE = 2
         const val MESSAGE_TYPE_ENCRYPTED = 0
         const val MESSAGE_TYPE_PRIMARY_SIGNED = 1
         const val MESSAGE_TYPE_SECONDARY_SIGNED = 2
 
         fun parse(data: ByteArray): TwiCommandFrame {
-            require(data.size >= HEADER_SIZE) {
-                "TWICommand too short: ${data.size} bytes, need at least $HEADER_SIZE"
+            require(data.size >= HEADER_SIZE + CRC_SIZE) {
+                "TWICommand too short: ${data.size} bytes, need at least ${HEADER_SIZE + CRC_SIZE}"
             }
 
-            val buf = ByteBuffer.wrap(data)
+            // Strip CRC-16 (last 2 bytes)
+            val frameData = data.copyOfRange(0, data.size - CRC_SIZE)
+
+            val buf = ByteBuffer.wrap(frameData)
             buf.order(ByteOrder.BIG_ENDIAN)
 
             val commandId = buf.short.toInt()
@@ -68,7 +79,7 @@ data class TwiCommandFrame(
                 ((buf.get().toInt() and 0xFF) shl 8) or
                 (buf.get().toInt() and 0xFF)
 
-            val payload = String(data, HEADER_SIZE, data.size - HEADER_SIZE, Charsets.UTF_8)
+            val payload = String(frameData, HEADER_SIZE, frameData.size - HEADER_SIZE, Charsets.UTF_8)
 
             return TwiCommandFrame(
                 commandBytes = payload,
@@ -77,6 +88,23 @@ data class TwiCommandFrame(
                 messageType = messageType,
                 notificationNumber = nn,
             )
+        }
+
+        /** CRC-16/CCITT (polynomial 0x1021, init 0xFFFF). */
+        private fun crc16Ccitt(data: ByteArray): Int {
+            var crc = 0xFFFF
+            for (byte in data) {
+                crc = crc xor ((byte.toInt() and 0xFF) shl 8)
+                repeat(8) {
+                    crc = if (crc and 0x8000 != 0) {
+                        (crc shl 1) xor 0x1021
+                    } else {
+                        crc shl 1
+                    }
+                    crc = crc and 0xFFFF
+                }
+            }
+            return crc
         }
     }
 }
