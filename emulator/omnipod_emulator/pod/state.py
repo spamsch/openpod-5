@@ -80,7 +80,7 @@ class PodState:
     cannula_inserted: bool = False
     deactivated: bool = False
     prime_start_time: float = 0.0
-    prime_duration: float = 10.0
+    prime_duration: float = 55.0  # Real Omnipod 5 priming takes ~55 seconds
     basal_rate: float = 1.0
     basal_program_raw: bytes = b""
     bolus_in_progress: bool = False
@@ -99,6 +99,7 @@ class PodState:
     _prev_glucose: int = 120
     _last_tick: float = 0.0
     _last_cgm_update: float = 0.0  # epoch of last CGM reading
+    _last_bolus_pulse_time: float = 0.0  # epoch of last bolus pulse delivery
 
     # Automatic micro-bolus (Omnipod 5 auto-mode, every 5 minutes)
     auto_mode_enabled: bool = True
@@ -239,8 +240,12 @@ class PodState:
 
         # -- Manual bolus: 0.05 U per pulse, one pulse every 3 seconds --
         if self.bolus_in_progress and self.bolus_remaining_units > 0:
-            max_pulses = int(elapsed / self.BOLUS_PULSE_INTERVAL)
+            if self._last_bolus_pulse_time == 0.0:
+                self._last_bolus_pulse_time = now
+            bolus_elapsed = now - self._last_bolus_pulse_time
+            max_pulses = int(bolus_elapsed / self.BOLUS_PULSE_INTERVAL)
             if max_pulses > 0:
+                self._last_bolus_pulse_time += max_pulses * self.BOLUS_PULSE_INTERVAL
                 bolus_delivered = min(
                     max_pulses * self.PULSE_UNITS,
                     self.bolus_remaining_units,
@@ -252,6 +257,7 @@ class PodState:
                     if self.bolus_remaining_units <= 0.001:
                         self.bolus_remaining_units = 0.0
                         self.bolus_in_progress = False
+                        self._last_bolus_pulse_time = 0.0
                         logger.info(
                             "Bolus delivery complete: %.2fU total",
                             self.bolus_total_units,
@@ -472,6 +478,7 @@ class PodState:
         self._prev_glucose = 120
         self._last_tick = 0.0
         self._last_cgm_update = 0.0
+        self._last_bolus_pulse_time = 0.0
         self._last_auto_bolus_time = 0.0
         self._basal_pulse_accumulator = 0.0
         self.auto_mode_enabled = True

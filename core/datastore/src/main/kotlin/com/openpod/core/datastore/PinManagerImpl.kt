@@ -65,6 +65,9 @@ internal class PinManagerImpl @Inject constructor(
         }
     }
 
+    override suspend fun hasPin(): Boolean =
+        sharedPreferences.getString(KEY_ENCRYPTED_PIN_HASH, null) != null
+
     override suspend fun clearPin() {
         sharedPreferences.edit().remove(KEY_ENCRYPTED_PIN_HASH).apply()
         Timber.i("PIN cleared")

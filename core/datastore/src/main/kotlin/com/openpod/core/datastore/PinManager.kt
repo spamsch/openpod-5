@@ -30,6 +30,13 @@ interface PinManager {
     suspend fun verifyPin(pin: String): Boolean
 
     /**
+     * Check whether a PIN has been configured.
+     *
+     * @return `true` if a PIN is stored, `false` otherwise.
+     */
+    suspend fun hasPin(): Boolean
+
+    /**
      * Clear the stored PIN, effectively disabling PIN protection.
      *
      * After calling this method, [verifyPin] will return `false` for all inputs.

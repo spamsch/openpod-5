@@ -79,9 +79,10 @@ class BolusViewModelTest {
         override suspend fun cancelBolus() = Result.success(Unit)
     }
 
-    private class FakePinManager(var verifyResult: Boolean = true) : PinManager {
+    private class FakePinManager(var verifyResult: Boolean = true, var pinStored: Boolean = true) : PinManager {
         override suspend fun storePin(pin: String) {}
         override suspend fun verifyPin(pin: String): Boolean = verifyResult
+        override suspend fun hasPin(): Boolean = pinStored
         override suspend fun clearPin() {}
     }
 

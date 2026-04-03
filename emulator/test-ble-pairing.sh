@@ -140,7 +140,7 @@ info "Step 3/7 CONNECT: Complete"
 # ── Step 4: PRIME — Wait for priming, tap "Priming Complete" ─────
 
 info "Step 4/7 PRIME: Waiting for priming to finish..."
-if ! wait_for_text "Confirm priming complete" 30; then
+if ! wait_for_text "Confirm priming complete" 90; then
   PID=$(get_pid)
   dump_logs "$PID" "PRIME failed"
   die "Priming did not complete within 30s"

@@ -10,7 +10,7 @@ VENV       := emulator/.venv/bin/activate
 PYTHON	   := python3
 
 .PHONY: help install install-emu run reset clear test test-emu build \
-        emulator emulator-seed lint
+        emulator emulator-seed emulator-restart emulator-logs lint
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -21,8 +21,8 @@ help: ## Show this help
 build: ## Build debug APK
 	$(GRADLE) assembleDebug
 
-install: ## Install debug APK (fake pod manager)
-	$(GRADLE) :app:installDebug
+install: ## Install debug APK (real BLE)
+	$(GRADLE) :app:installDebug -PuseBle=true
 
 install-emu: ## Install debug APK with emulator mode
 	$(GRADLE) :app:installDebug -PuseEmulator=true
@@ -51,6 +51,14 @@ emulator-seed: ## Start the pod emulator (deterministic)
 
 emulator-debug: ## Start the pod emulator with debug logging
 	source $(VENV) && $(PYTHON) $(EMULATOR) --mode tcp --log-level DEBUG
+
+PI_HOST := openpod@openpod.local
+
+emulator-restart: ## Restart BLE emulator on Raspberry Pi
+	emulator/restart-emulator.sh
+
+emulator-logs: ## Tail emulator logs on Raspberry Pi
+	ssh $(PI_HOST) "tail -f /home/openpod/emulator/emulator.log"
 
 # ── Tests ───────────────────────────────────────────────────────────
 

@@ -233,27 +233,25 @@ class RhpHandlers:
         d.register_set(1, 4, self._handle_insert_cannula)       # Insert cannula
         d.register_set(1, 5, self._handle_enable_algorithm)     # Enable algorithm
 
-        # Operations (emulator-specific type 200+ to avoid conflict with
-        # documented type 2 = History Buffer):
-        # TODO: Map to actual wire-format type/attr pairs once determined
-        # from decompilation. These may use direct binary TWICommand payloads
-        # rather than text RHP.
-        d.register_set(200, 0, self._handle_send_bolus)         # Send bolus
-        d.register_set(200, 1, self._handle_stop_program)       # Stop program
-        d.register_set(200, 2, self._handle_send_temp_basal)    # Temp basal
-        d.register_set(200, 3, self._handle_resume_insulin)     # Resume insulin
-        d.register_set(200, 4, self._handle_send_beep)          # Beep
-        d.register_set(200, 5, self._handle_silence_alert)      # Silence alert
-        d.register_set(200, 6, self._handle_deactivate)         # Deactivate
+        # Operations (type 2): bolus, stop program, temp basal, etc.
+        d.register_set(2, 0, self._handle_send_bolus)           # Send bolus
+        d.register_set(2, 1, self._handle_stop_program)         # Stop program
+        d.register_set(2, 2, self._handle_send_temp_basal)      # Temp basal
+        d.register_set(2, 3, self._handle_resume_insulin)       # Resume insulin
+        d.register_set(2, 4, self._handle_send_beep)            # Beep
+        d.register_set(2, 5, self._handle_silence_alert)        # Silence alert
+        d.register_set(2, 6, self._handle_deactivate)             # Deactivate
 
         # AID Pod Status (documented G11.3 and G12.3)
         d.register_get(11, 3, self._handle_get_aid_status_g11)
         d.register_get(12, 3, self._handle_get_aid_status_g12)
 
         # History Buffer (type 2) — stub handlers
-        d.register_get(2, 0, self._handle_get_history_index)    # HISTORY_BUFFER_INDEX_LENGTH
-        d.register_set(2, 0, self._handle_set_history_index)    # HISTORY_BUFFER_INDEX_LENGTH
-        d.register_get(2, 1, self._handle_get_history_data)     # HISTORY_BUFFER_DATA
+        # History buffer stubs disabled — type 2 is used for operations
+        # (bolus, stop, temp basal) which takes priority.
+        # d.register_get(2, 0, self._handle_get_history_index)
+        # d.register_set(2, 0, self._handle_set_history_index)
+        # d.register_get(2, 1, self._handle_get_history_data)
 
         # Missing RHP handler stubs:
 
@@ -449,12 +447,13 @@ class RhpHandlers:
         glucose = self._pod.glucose_mg_dl or 0
         trend = self._pod.glucose_trend or 0
         iob = int(self._pod.iob_units * 100)
+        bolus_total_pulses = int(self._pod.bolus_total_units / 0.05)
 
         value = (
             f"{flags:02x};0000;{rs.value};"
             f"{reservoir};{uid_hex};{minutes};"
             f"{bolus_pulses};{total_pulses};"
-            f"{glucose};{trend};{iob};0"
+            f"{glucose};{trend};{iob};{bolus_total_pulses}"
         )
 
         logger.info("G1.6: running_state=%s (%d), activation=%s",
@@ -662,12 +661,12 @@ class RhpHandlers:
     # ------------------------------------------------------------------
 
     def _handle_send_bolus(self, req: RhpRequest) -> RhpResponse:
-        """S200.0=<pulse_count> -> Send bolus."""
+        """S2.0=<pulse_count> -> Send bolus."""
         if not self._pod.activated:
-            return RhpResponse.error(RhpAction.SET, 200, 0, RhpErrorCode.INVALID_STATE)
+            return RhpResponse.error(RhpAction.SET, 2, 0, RhpErrorCode.INVALID_STATE)
 
         if req.payload is None:
-            return RhpResponse.error(RhpAction.SET, 200, 0, RhpErrorCode.INVALID_VALUE)
+            return RhpResponse.error(RhpAction.SET, 2, 0, RhpErrorCode.INVALID_VALUE)
 
         bolus_pulses = int(req.payload)
         bolus_units = bolus_pulses * 0.05
@@ -675,45 +674,45 @@ class RhpHandlers:
         self._pod.bolus_in_progress = True
         self._pod.bolus_remaining_units = bolus_units
         self._pod.bolus_total_units = bolus_units
-        logger.info("S200.0: bolus %.2fU (%d pulses) started", bolus_units, bolus_pulses)
-        return RhpResponse.success("", 200, 0)
+        logger.info("S2.0: bolus %.2fU (%d pulses) started", bolus_units, bolus_pulses)
+        return RhpResponse.success("", 2, 0)
 
     def _handle_stop_program(self, _req: RhpRequest) -> RhpResponse:
-        """S200.1=1 -> Stop current delivery program."""
+        """S2.1=1 -> Stop current delivery program."""
         self._pod.bolus_in_progress = False
         self._pod.bolus_remaining_units = 0.0
-        logger.info("S200.1: program stopped")
-        return RhpResponse.success("", 200, 1)
+        logger.info("S2.1: program stopped")
+        return RhpResponse.success("", 2, 1)
 
     def _handle_send_temp_basal(self, req: RhpRequest) -> RhpResponse:
-        """S200.2=<rate>;<duration_slots> -> Temp basal."""
+        """S2.2=<rate>;<duration_slots> -> Temp basal."""
         if req.payload:
             parts = req.payload.split(";")
             if len(parts) >= 1:
                 self._pod.temp_basal_rate = float(parts[0])
                 self._pod.temp_basal_active = True
-        logger.info("S200.2: temp basal rate=%.2f", self._pod.temp_basal_rate)
-        return RhpResponse.success("", 200, 2)
+        logger.info("S2.2: temp basal rate=%.2f", self._pod.temp_basal_rate)
+        return RhpResponse.success("", 2, 2)
 
     def _handle_resume_insulin(self, _req: RhpRequest) -> RhpResponse:
-        """S200.3=1 -> Resume insulin delivery."""
+        """S2.3=1 -> Resume insulin delivery."""
         self._pod.temp_basal_active = False
-        logger.info("S200.3: insulin resumed")
-        return RhpResponse.success("", 200, 3)
+        logger.info("S2.3: insulin resumed")
+        return RhpResponse.success("", 2, 3)
 
     def _handle_send_beep(self, _req: RhpRequest) -> RhpResponse:
-        """S200.4=1 -> Beep."""
-        logger.info("S200.4: beep!")
-        return RhpResponse.success("", 200, 4)
+        """S2.4=1 -> Beep."""
+        logger.info("S2.4: beep!")
+        return RhpResponse.success("", 2, 4)
 
     def _handle_silence_alert(self, req: RhpRequest) -> RhpResponse:
-        """S200.5=<alert_index> -> Silence alert."""
-        logger.info("S200.5: alert silenced")
-        return RhpResponse.success("", 200, 5)
+        """S2.5=<alert_index> -> Silence alert."""
+        logger.info("S2.5: alert silenced")
+        return RhpResponse.success("", 2, 5)
 
     def _handle_deactivate(self, _req: RhpRequest) -> RhpResponse:
-        """S200.6=1 -> Deactivate pod and reset to factory state."""
-        logger.info("S200.6: deactivating pod and resetting state")
+        """S2.6=1 -> Deactivate pod and reset to factory state."""
+        logger.info("S2.6: deactivating pod and resetting state")
 
         # Reset pod state to fresh defaults (full reservoir, no delivery, etc.)
         self._pod.reset()
@@ -738,7 +737,7 @@ class RhpHandlers:
         if self._on_deactivate is not None:
             self._on_deactivate()
 
-        return RhpResponse.success("", 200, 6)
+        return RhpResponse.success("", 2, 6)
 
     # ------------------------------------------------------------------
     # History Buffer handlers (type 2, documented)

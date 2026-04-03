@@ -109,7 +109,14 @@ class BolusViewModel @Inject constructor(
 
     private fun onNextToReview() {
         if (!currentState.canReview) return
-        updateState { copy(phase = BolusPhase.REVIEW) }
+        // Skip PIN verification when no PIN is configured
+        launch {
+            if (!pinManager.hasPin()) {
+                updateState { copy(phase = BolusPhase.REVIEW, isAuthenticated = true) }
+            } else {
+                updateState { copy(phase = BolusPhase.REVIEW) }
+            }
+        }
     }
 
     private fun onUpdatePin(text: String) {

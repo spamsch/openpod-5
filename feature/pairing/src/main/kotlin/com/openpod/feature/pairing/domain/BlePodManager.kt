@@ -434,7 +434,7 @@ class BlePodManager @Inject constructor(
         private const val PAIR_ALREADY_PAIRED: Byte = 0x05
 
         private const val PRIME_POLL_INTERVAL_MS = 1000L
-        private const val MAX_PRIME_POLLS = 15
+        private const val MAX_PRIME_POLLS = 70
         private const val RUNNING_STATE_ABOVE_MIN_VOLUME = 8
         private const val ACTIVATION_STEP_DELAY_MS = 1000L
         private const val BLE_RESPONSE_TIMEOUT_MS = 8000L
