@@ -1,0 +1,25 @@
+# BLE controller only — no host stack (we use VHCI directly)
+CONFIG_BT_ENABLED=y
+CONFIG_BT_CONTROLLER_ONLY=y
+CONFIG_BT_CONTROLLER_ENABLED=y
+
+# BLE only, no classic BT
+CONFIG_BT_CTRL_MODE_EFF=1
+CONFIG_BT_CTRL_BLE_MAX_ACT=6
+
+# VHCI enabled
+CONFIG_BT_CTRL_HCI_MODE_VHCI=y
+
+# Scan duplicate filtering off — we want every packet
+CONFIG_BT_CTRL_SCAN_DUPL_TYPE_DEVICE=y
+
+# Console / UART for serial commands
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
+CONFIG_ESP_CONSOLE_UART_BAUDRATE=115200
+
+# Logging
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+CONFIG_LOG_MAXIMUM_LEVEL_DEBUG=y
+
+# Increase main task stack for printf-heavy output
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=4096

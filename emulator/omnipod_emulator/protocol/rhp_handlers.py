@@ -234,6 +234,9 @@ class RhpHandlers:
         d.register_set(1, 5, self._handle_enable_algorithm)     # Enable algorithm
 
         # Operations (type 2): bolus, stop program, temp basal, etc.
+        # NOTE: type 2 is also History Buffer in the real protocol, but delivery
+        # ops use a separate binary mechanism on real pods.  The emulator reuses
+        # type 2 as a text-RHP convenience (history buffer stubs are disabled).
         d.register_set(2, 0, self._handle_send_bolus)           # Send bolus
         d.register_set(2, 1, self._handle_stop_program)         # Stop program
         d.register_set(2, 2, self._handle_send_temp_basal)      # Temp basal

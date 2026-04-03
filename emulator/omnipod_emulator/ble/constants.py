@@ -75,14 +75,28 @@ def paired_scan_uuids(ctrl_id: bytes) -> list[str]:
     return [f"{base}{hex_id}{i:02x}" for i in range(4)]
 
 # ---------------------------------------------------------------------------
+# Pod identity
+# ---------------------------------------------------------------------------
+
+INSULET_COMPANY_ID = 0x0360
+"""Insulet Corporation Bluetooth SIG company ID."""
+
+POD_ID = 0x0000E001
+"""
+Emulator pod ID (distinct from any real pod).
+The full pod ID is split across the scan UUID (base, upper 30 bits) and
+manufacturer data (adjustment, lower 2 bits).
+"""
+
+POD_SERIAL = "0F00EMU100000001"
+"""Emulator serial number (16 hex chars, clearly fake)."""
+
+# ---------------------------------------------------------------------------
 # Advertising parameters
 # ---------------------------------------------------------------------------
 
 ADVERTISING_INTERVAL_MS = 100
 """Advertising interval in milliseconds (fast advertising for discovery)."""
-
-DEVICE_NAME = "Openpod_Emu"
-"""BLE device name advertised by the pod emulator."""
 
 # ---------------------------------------------------------------------------
 # Connection parameters

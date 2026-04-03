@@ -9,7 +9,7 @@ Tests the new handlers added during protocol remediation:
 - CGM stubs (S4.1, G4.1, G4.3)
 - System stub (S255.3)
 - Engineering stubs (GR0.1, GR0.2, GR0.5)
-- Operations on type 200 (S200.0 - S200.6)
+- Operations on type 2 (S2.0 - S2.6)
 """
 
 from __future__ import annotations
@@ -146,21 +146,6 @@ class TestAidPodStatus:
         assert len(hex_payload) == 90
 
 
-class TestHistoryBufferStubs:
-    """Test History Buffer type 2 stub handlers."""
-
-    def test_get_history_index(self):
-        d, _, _ = _make_handlers()
-        assert d.dispatch("G2.0") == "2.0=0;0"
-
-    def test_set_history_index(self):
-        d, _, _ = _make_handlers()
-        assert d.dispatch("S2.0=1") == "ES2.0=0"
-
-    def test_get_history_data(self):
-        d, _, _ = _make_handlers()
-        assert d.dispatch("G2.1") == "2.1="
-
 
 class TestLoggerStubs:
     """Test Logger stub handlers."""
@@ -223,37 +208,37 @@ class TestEngineeringStubs:
 
 
 class TestOperationsOnType200:
-    """Test that operations are accessible on type 200."""
+    """Test that operations are accessible on type 2."""
 
     def test_bolus_requires_activation(self):
         d, _, _ = _make_handlers()
-        result = d.dispatch("S200.0=20")
+        result = d.dispatch("S2.0=20")
         # Should return error (pod not activated)
-        assert result.startswith("ES200.0=")
+        assert result.startswith("ES2.0=")
 
     def test_stop_program(self):
         d, _, _ = _make_handlers()
-        assert d.dispatch("S200.1=1") == "ES200.1=0"
+        assert d.dispatch("S2.1=1") == "ES2.1=0"
 
     def test_temp_basal(self):
         d, _, _ = _make_handlers()
-        assert d.dispatch("S200.2=1.5;12") == "ES200.2=0"
+        assert d.dispatch("S2.2=1.5;12") == "ES2.2=0"
 
     def test_resume_insulin(self):
         d, _, _ = _make_handlers()
-        assert d.dispatch("S200.3=1") == "ES200.3=0"
+        assert d.dispatch("S2.3=1") == "ES2.3=0"
 
     def test_beep(self):
         d, _, _ = _make_handlers()
-        assert d.dispatch("S200.4=1") == "ES200.4=0"
+        assert d.dispatch("S2.4=1") == "ES2.4=0"
 
     def test_silence_alert(self):
         d, _, _ = _make_handlers()
-        assert d.dispatch("S200.5=1") == "ES200.5=0"
+        assert d.dispatch("S2.5=1") == "ES2.5=0"
 
     def test_deactivate(self):
         d, _, pod = _make_handlers()
-        assert d.dispatch("S200.6=1") == "ES200.6=0"
+        assert d.dispatch("S2.6=1") == "ES2.6=0"
         # Pod should be reset
         assert pod.activated is False
         assert pod.reservoir_units == 200.0
@@ -271,7 +256,7 @@ class TestDeactivationReset:
         assert h.aid_setup_state == AidSetupState.TDI
 
         # Deactivate
-        d.dispatch("S200.6=1")
+        d.dispatch("S2.6=1")
         assert h.aid_setup_state == AidSetupState.READY
 
     def test_deactivation_fires_callback(self):
@@ -280,5 +265,5 @@ class TestDeactivationReset:
         called = []
         handlers = RhpHandlers(pod, dispatcher, on_deactivate=lambda: called.append(True))
 
-        dispatcher.dispatch("S200.6=1")
+        dispatcher.dispatch("S2.6=1")
         assert len(called) == 1

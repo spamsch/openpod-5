@@ -5,7 +5,7 @@ Simulates the phone side of the protocol and exercises:
     1. Connection init
     2. ECDH pairing (key exchange + confirmation)
     3. EAP-AKA mutual authentication
-    4. Encrypted TWICommand + text RHP dispatch (GV, G11.3, S200.0=...)
+    4. Encrypted TWICommand + text RHP dispatch (GV, G11.3, S2.0=...)
 
 These tests run entirely in-process with no BLE stack.
 """
@@ -585,7 +585,7 @@ class TestEncryptedCommands:
     def test_bolus_via_text_rhp(
         self, session: ProtocolSession, pod_state: PodState
     ):
-        """Test bolus command via text RHP: S200.0=<pulses>."""
+        """Test bolus command via text RHP: S2.0=<pulses>."""
         msk = self._authenticate(session)
 
         # First activate the pod through the activation sequence
@@ -614,7 +614,7 @@ class TestEncryptedCommands:
         bolus_counter = len(activation_cmds)
         enc_msg = phone_build_encrypted_rhp(
             msk=msk,
-            rhp_text="S200.0=20",
+            rhp_text="S2.0=20",
             nonce_counter=bolus_counter,
             command_id=200,
         )
@@ -622,7 +622,7 @@ class TestEncryptedCommands:
 
         assert response is not None
         twi_resp = phone_decrypt_response(msk, response, nonce_counter=bolus_counter)
-        assert twi_resp.command_bytes == "ES200.0=0"
+        assert twi_resp.command_bytes == "ES2.0=0"
 
         # Verify pod state
         assert pod_state.bolus_in_progress is True
@@ -701,17 +701,17 @@ class TestDeactivation:
 
         # Start a bolus
         n = len(activation_cmds)
-        enc = phone_build_encrypted_rhp(msk=msk, rhp_text="S200.0=20", nonce_counter=n, command_id=n)
+        enc = phone_build_encrypted_rhp(msk=msk, rhp_text="S2.0=20", nonce_counter=n, command_id=n)
         session.on_message(enc)
         assert pod_state.bolus_in_progress is True
 
         # Deactivate
         deactivate_n = n + 1
-        enc = phone_build_encrypted_rhp(msk=msk, rhp_text="S200.6=1", nonce_counter=deactivate_n, command_id=deactivate_n)
+        enc = phone_build_encrypted_rhp(msk=msk, rhp_text="S2.6=1", nonce_counter=deactivate_n, command_id=deactivate_n)
         response = session.on_message(enc)
         assert response is not None
         twi_resp = phone_decrypt_response(msk, response, nonce_counter=deactivate_n)
-        assert twi_resp.command_bytes == "ES200.6=0"
+        assert twi_resp.command_bytes == "ES2.6=0"
 
         # Pod state should be fully reset
         assert pod_state.activated is False
@@ -744,7 +744,7 @@ class TestDeactivation:
 
         # Deactivate
         n = len(activation_cmds)
-        enc = phone_build_encrypted_rhp(msk=msk, rhp_text="S200.6=1", nonce_counter=n, command_id=n)
+        enc = phone_build_encrypted_rhp(msk=msk, rhp_text="S2.6=1", nonce_counter=n, command_id=n)
         session.on_message(enc)
 
         # Session stays ACTIVE (keys still valid for final response),
@@ -1067,8 +1067,8 @@ class TestEndToEndBolusFlow:
         assert pod_state.bolus_in_progress is False
 
         # Send 40 pulses = 2.0 U bolus
-        bolus_resp = send_rhp("S200.0=40", 12)
-        assert bolus_resp == "ES200.0=0"
+        bolus_resp = send_rhp("S2.0=40", 12)
+        assert bolus_resp == "ES2.0=0"
 
         assert pod_state.bolus_in_progress is True
         assert pod_state.bolus_total_units == pytest.approx(2.0)

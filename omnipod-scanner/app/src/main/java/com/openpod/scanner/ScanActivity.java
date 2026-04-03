@@ -7,6 +7,7 @@ import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanRecord;
 import android.bluetooth.le.ScanResult;
+import android.bluetooth.le.ScanSettings;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Handler;
@@ -103,7 +104,12 @@ public class ScanActivity extends AppCompatActivity {
         openLogFile();
 
         // No scan filters — we want to see ALL BLE devices but highlight Omnipod ones
-        scanner.startScan(scanCallback);
+        ScanSettings settings = new ScanSettings.Builder()
+                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                .setLegacy(false)
+                .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+                .build();
+        scanner.startScan(null, settings, scanCallback);
         scanning = true;
         btnScan.setText("Stop Scan");
         tvStatus.setText("Scanning... (showing ALL devices, Omnipod highlighted)");
