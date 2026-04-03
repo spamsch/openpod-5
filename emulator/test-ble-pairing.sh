@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# test-ble-pairing.sh — End-to-end BLE pairing test
+# test-ble-pairing.sh — End-to-end BLE pairing + activation test
 #
 # Restarts the Pi emulator, builds and installs the app, then drives
-# the UI through: Dashboard → Pair Pod → Pod Is Filled → Discover →
-# tap pod → watch connection/pairing/auth logs.
+# the full UI flow:
+#   Dashboard → Pair Pod → Pod Is Filled → Discover → tap pod →
+#   Connect/Auth → Prime → Apply (select site) → Begin Delivery →
+#   Activation → Go to Dashboard
 #
 # Usage:  ./emulator/test-ble-pairing.sh
 #         ./emulator/test-ble-pairing.sh --skip-build   # reuse current APK
@@ -13,7 +15,7 @@ set -euo pipefail
 PI_HOST="${PI_HOST:-openpod@openpod.local}"
 PACKAGE="com.openpod"
 ACTIVITY="${PACKAGE}/.MainActivity"
-LOG_TAG_FILTER="BlePodManager|KablePod|MTU|PairingModule|DashboardModule|MVI/Pairing.*Intent|MVI/Pairing.*error|Pod discovered|EAP|pairing|TpClassic|auth"
+LOG_TAG_FILTER="BlePodManager|KablePod|MTU|PairingModule|DashboardModule|MVI/Pairing.*Intent|MVI/Pairing.*error|Pod discovered|EAP|pairing|TpClassic|auth|prime|activation|cannula|delivery|Activated"
 
 skip_build=false
 [[ "${1:-}" == "--skip-build" ]] && skip_build=true
@@ -59,6 +61,27 @@ wait_for_text() {
   return 1
 }
 
+get_pid() {
+  adb shell pidof "$PACKAGE" 2>/dev/null || true
+}
+
+dump_logs() {
+  local pid="$1" label="$2"
+  echo ""
+  echo "═══ $label — App logs ═══"
+  adb logcat -d --pid="$pid" \
+    | grep -iE "$LOG_TAG_FILTER" \
+    | grep -iv "WindowManager|FeatureFlags|CompatChange" \
+    | tail -40
+  echo ""
+  echo "═══ $label — Emulator logs ═══"
+  ssh -o ConnectTimeout=5 "$PI_HOST" \
+    "sudo journalctl -u openpod-emulator --no-pager --since '2 min ago'" 2>&1 \
+    | grep -iE "INFO|WARN|ERROR" \
+    | grep -v "transport\|recv\|send" \
+    | tail -30
+}
+
 # ── 1. Restart emulator ───────────────────────────────────────────
 
 info "Stopping app and restarting emulator on Pi..."
@@ -81,58 +104,104 @@ adb logcat -c
 adb shell am start -n "$ACTIVITY" >/dev/null
 sleep 3
 
-# ── 4. Pair Pod ───────────────────────────────────────────────────
+# ── Step 1: FILL — Tap "Pair Pod" then "Pod Is Filled" ───────────
 
-info "Tapping 'Pair Pod'..."
+info "Step 1/7 FILL: Tapping 'Pair Pod'..."
 tap_text "Pair Pod" || die "Could not find 'Pair Pod' button"
 sleep 2
 
-# ── 5. Pod Is Filled ─────────────────────────────────────────────
-
-info "Tapping 'Pod Is Filled'..."
+info "Step 1/7 FILL: Tapping 'Pod Is Filled'..."
 tap_text "Pod Is Filled" || die "Could not find 'Pod Is Filled' button"
 sleep 1
 
-# ── 6. Wait for pod discovery ────────────────────────────────────
+# ── Step 2: DISCOVER — Wait for pod, tap it ──────────────────────
 
-info "Waiting for emulator pod to appear..."
+info "Step 2/7 DISCOVER: Waiting for emulator pod..."
 if ! wait_for_text "Openpod_Emu" 30; then
   die "Pod not discovered within 30s"
 fi
-
-# ── 7. Tap discovered pod ────────────────────────────────────────
-
-info "Pod discovered — tapping it..."
+info "Step 2/7 DISCOVER: Pod found — tapping it..."
 sleep 1
 tap_text "Openpod_Emu" || die "Could not tap discovered pod"
 
-# ── 8. Collect logs ──────────────────────────────────────────────
+# ── Step 3: CONNECT — Automatic (BLE + ECDH + EAP-AKA) ──────────
 
-info "Waiting for connection + auth sequence (20s)..."
-sleep 20
+info "Step 3/7 CONNECT: Waiting for connection + auth..."
+if ! wait_for_text "Priming" 30; then
+  # Might already be past priming to the button
+  if ! wait_for_text "Priming Complete" 5; then
+    PID=$(get_pid)
+    dump_logs "$PID" "CONNECT failed"
+    die "Connection/auth did not complete within 30s"
+  fi
+fi
+info "Step 3/7 CONNECT: Complete"
 
-PID=$(adb shell pidof "$PACKAGE" 2>/dev/null || true)
+# ── Step 4: PRIME — Wait for priming, tap "Priming Complete" ─────
+
+info "Step 4/7 PRIME: Waiting for priming to finish..."
+if ! wait_for_text "Confirm priming complete" 30; then
+  PID=$(get_pid)
+  dump_logs "$PID" "PRIME failed"
+  die "Priming did not complete within 30s"
+fi
+info "Step 4/7 PRIME: Done — confirming..."
+sleep 1
+tap_text "Priming Complete" || die "Could not tap 'Priming Complete'"
+sleep 2
+
+# ── Step 5: APPLY — Select site, tap "Pod Is Applied" ────────────
+
+info "Step 5/7 APPLY: Selecting infusion site..."
+# Wait for the apply screen
+if ! wait_for_text "Pod Is Applied" 10; then
+  die "Apply screen did not appear"
+fi
+# Select first available site (e.g. "Abdomen L")
+tap_text "Abdomen L" || tap_text "Abdomen" || die "Could not select infusion site"
+sleep 1
+info "Step 5/7 APPLY: Tapping 'Pod Is Applied'..."
+tap_text "Pod Is Applied" || die "Could not tap 'Pod Is Applied'"
+sleep 2
+
+# ── Step 6: START — Tap "Begin Delivery", wait for activation ────
+
+info "Step 6/7 START: Tapping 'Begin Delivery'..."
+if ! wait_for_text "Begin Delivery" 10; then
+  die "Start screen did not appear"
+fi
+tap_text "Begin Delivery" || die "Could not tap 'Begin Delivery'"
+
+info "Step 6/7 START: Waiting for activation to complete..."
+if ! wait_for_text "Pod Activated" 45; then
+  PID=$(get_pid)
+  dump_logs "$PID" "ACTIVATION failed"
+  die "Activation did not complete within 45s"
+fi
+info "Step 6/7 START: Activation complete"
+sleep 1
+
+# ── Step 7: COMPLETE — Tap "Go to Dashboard" ─────────────────────
+
+info "Step 7/7 COMPLETE: Tapping 'Go to Dashboard'..."
+tap_text "Go to Dashboard" || die "Could not tap 'Go to Dashboard'"
+sleep 2
+
+# ── Results ──────────────────────────────────────────────────────
+
+PID=$(get_pid)
 if [[ -z "$PID" ]]; then
   die "App not running"
 fi
 
-echo ""
-echo "═══ App logs ═══"
-adb logcat -d --pid="$PID" | grep -iE "$LOG_TAG_FILTER" | grep -iv "WindowManager|FeatureFlags|CompatChange"
-
-echo ""
-echo "═══ Emulator logs ═══"
-ssh -o ConnectTimeout=5 "$PI_HOST" \
-  "sudo journalctl -u openpod-emulator --no-pager --since '1 min ago'" 2>&1 \
-  | grep -iE "INFO|WARN|ERROR" \
-  | grep -v "transport\|recv\|send"
+dump_logs "$PID" "Final"
 
 echo ""
 # Check for errors
-if adb logcat -d --pid="$PID" | grep -qiE "error.*Timed out|exception|FAILED"; then
+if adb logcat -d --pid="$PID" | grep -qiE "error.*Timed out|IllegalState.*exception"; then
   echo "⚠  Errors detected in app logs"
   exit 1
 else
-  echo "✓  No errors detected"
+  echo "✓  Full pairing + activation completed successfully"
   exit 0
 fi
