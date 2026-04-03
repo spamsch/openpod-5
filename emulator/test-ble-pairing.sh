@@ -122,12 +122,12 @@ sleep 1
 # ── Step 2: DISCOVER — Wait for pod, tap it ──────────────────────
 
 info "Step 2/7 DISCOVER: Waiting for emulator pod..."
-if ! wait_for_text "Openpod_Emu" 30; then
+if ! wait_for_text "AP 0000E001" 30; then
   die "Pod not discovered within 30s"
 fi
 info "Step 2/7 DISCOVER: Pod found — tapping it..."
 sleep 1
-tap_text "Openpod_Emu" || die "Could not tap discovered pod"
+tap_text "AP 0000E001" || die "Could not tap discovered pod"
 
 # ── Step 3: CONNECT — Automatic (BLE + ECDH + EAP-AKA) ──────────
 

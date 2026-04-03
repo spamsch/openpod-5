@@ -35,14 +35,16 @@ Makefile target (test-ui)
 hilt-android-testing = "2.59.2"   # match existing hilt version
 test-runner          = "1.6.2"
 test-rules           = "1.6.2"
+junit4               = "4.13.2"   # required for Compose instrumented tests
 
 [libraries]
 hilt-android-testing          = { module = "com.google.dagger:hilt-android-testing", version.ref = "hilt-android-testing" }
 androidx-test-runner          = { module = "androidx.test:runner", version.ref = "test-runner" }
 androidx-test-rules           = { module = "androidx.test:rules", version.ref = "test-rules" }
+junit4                        = { module = "junit:junit", version.ref = "junit4" }
 
 [bundles]
-androidTest = ["hilt-android-testing", "androidx-test-runner", "androidx-test-rules", "compose-ui-test-junit4"]
+androidTest = ["hilt-android-testing", "androidx-test-runner", "androidx-test-rules", "junit4", "compose-ui-test-junit4"]
 ```
 
 ### 1.2 Configure `app/build.gradle.kts`
@@ -73,7 +75,7 @@ android {
 
 dependencies {
     androidTestImplementation(libs.bundles.androidTest)
-    androidTestAnnotationProcessor(libs.hilt.compiler)  // or ksp
+    kspAndroidTest(libs.hilt.compiler)
     debugImplementation(libs.compose.ui.test.manifest)
 }
 ```
@@ -134,7 +136,12 @@ class OnboardingE2ETest {
 }
 ```
 
-### 2.2 Bolus delivery flow
+### 2.2 Bolus delivery flow (uses `-PskipOnboarding=true`)
+
+> **Note:** Tests that start from the dashboard (2.2–2.5) should use the
+> existing `skipOnboarding` build config flag to bypass onboarding setup.
+> This avoids repeating the full onboarding flow in every test and keeps
+> them focused on the feature under test.
 
 **File:** `BolusE2ETest.kt`
 
@@ -186,7 +193,7 @@ class OnboardingE2ETest {
 The Python emulator listens on TCP. The AVD needs `adb forward` to reach it on the host:
 
 ```bash
-adb forward tcp:19021 tcp:19021
+adb forward tcp:9996 tcp:9996
 ```
 
 This must happen after GMD boots the device but before tests run. Options:
@@ -212,7 +219,12 @@ EMU_PID_FILE := .emulator.pid
 test-ui: ## Run full UI integration tests
 	@echo "Starting pod emulator (seed 42)..."
 	$(MAKE) emulator-seed & echo $$! > $(EMU_PID_FILE)
-	@sleep 3
+	@echo "Waiting for emulator to be ready on port 9996..."
+	@for i in $$(seq 1 20); do \
+		nc -z localhost 9996 2>/dev/null && break; \
+		sleep 0.5; \
+	done
+	@nc -z localhost 9996 || { echo "Emulator failed to start"; $(MAKE) test-ui-stop; exit 1; }
 	@echo "Running UI tests on managed device..."
 	./gradlew pixel6Api34DebugAndroidTest -PuseEmulator=true \
 		--no-daemon \
