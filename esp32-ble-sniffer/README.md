@@ -21,9 +21,13 @@ advertisements as if they were intended for this device.
 
 ## Operating Modes
 
+**Important:** A paired Pod will only advertise when no PDM is connected.
+If the PDM holds an active BLE connection, the Pod stops advertising entirely.
+Power off the PDM (or move it out of range) before scanning for a paired Pod.
+
 ### Mode 1: Discovery (default)
 
-Scans for all BLE advertisements with extended filter policy (0x02).
+Scans for all BLE advertisements using basic filter policy (0x00).
 Use this to find:
 - The Pod's BLE address (look for Insulet manufacturer data `0x0360`)
 - The PDM's BLE address
