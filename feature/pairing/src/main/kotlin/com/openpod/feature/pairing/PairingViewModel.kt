@@ -323,7 +323,7 @@ class PairingViewModel @Inject constructor(
                 podManager.startScan().collect { pod ->
                     updateState {
                         copy(
-                            discoveredPods = discoveredPods + pod,
+                            discoveredPods = discoveredPods.filter { it.id != pod.id } + pod,
                             isProcessing = false,
                         )
                     }
