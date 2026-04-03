@@ -28,7 +28,7 @@ object DashboardModule {
         emulatorSource: EmulatorDashboardDataSource,
         mockSource: MockDashboardDataSource,
     ): DashboardDataSource {
-        return if (BuildConfig.USE_EMULATOR) {
+        return if (BuildConfig.USE_EMULATOR || BuildConfig.USE_BLE) {
             Timber.i("DashboardModule: Using EmulatorDashboardDataSource")
             emulatorSource
         } else {

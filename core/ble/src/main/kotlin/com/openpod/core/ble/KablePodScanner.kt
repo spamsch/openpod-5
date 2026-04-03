@@ -5,9 +5,8 @@ import com.juul.kable.logs.Logging
 import com.juul.kable.logs.SystemLogEngine
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
@@ -56,8 +55,7 @@ class KablePodScanner @Inject constructor() : PodBleScanner {
      * timeout or when [stopScan] is called.
      */
     @OptIn(ExperimentalUuidApi::class)
-    private fun scanInternal(filterType: ScanFilterType): Flow<DiscoveredPod> = flow {
-        coroutineScope {
+    private fun scanInternal(filterType: ScanFilterType): Flow<DiscoveredPod> = channelFlow {
             val job = launch {
                 withTimeoutOrNull(BleConstants.SCAN_TIMEOUT_MS) {
                     scanner.advertisements
@@ -117,14 +115,13 @@ class KablePodScanner @Inject constructor() : PodBleScanner {
                                 discovered.rssi,
                             )
 
-                            emit(discovered)
+                            send(discovered)
                         }
                 }
                 Timber.d("Scan timeout reached after %dms", BleConstants.SCAN_TIMEOUT_MS)
             }
             scanJob = job
             job.join()
-        }
     }
 
     private enum class ScanFilterType {

@@ -110,7 +110,7 @@ class BlePodManager @Inject constructor(
             val initMsg = byteArrayOf(MSG_INIT, 0x01, 0x04) + controllerId
             conn.writeCommand(initMsg).getOrThrow()
 
-            // Read response from TpClassic notifications
+            // Read response — notifications are subscribed during connect()
             val response = readBleResponse()
 
             if (response[0] != MSG_PAIRING) {

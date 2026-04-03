@@ -1,6 +1,7 @@
 package com.openpod.core.ble
 
 import com.juul.kable.Advertisement
+import com.juul.kable.AndroidPeripheral
 import com.juul.kable.Peripheral
 import com.juul.kable.State
 import com.juul.kable.WriteType
@@ -9,6 +10,7 @@ import com.juul.kable.logs.Logging
 import com.juul.kable.logs.SystemLogEngine
 import com.openpod.model.pod.PodConnectionState
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,6 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.withTimeout
 import timber.log.Timber
 import kotlin.time.measureTimedValue
@@ -46,6 +49,13 @@ class KablePodConnection(
 
     private var peripheral: Peripheral? = null
     private var negotiatedMtu: Int = BleConstants.DEFAULT_MTU
+
+    /**
+     * Buffered channel for TpClassic notifications, subscribed once during
+     * connection setup. Using a Channel (not SharedFlow) ensures notifications
+     * are queued and not lost between write and readBleResponse() calls.
+     */
+    private val _notifications = Channel<ByteArray>(capacity = 8)
 
     /** Last write timestamp for enforcing inter-operation delay. */
     private var lastOperationTimeMs: Long = 0L
@@ -147,6 +157,27 @@ class KablePodConnection(
             }
             .launchIn(scope)
 
+        // Negotiate a larger MTU so notifications can carry full responses.
+        val androidPeripheral = p as AndroidPeripheral
+        val mtu = androidPeripheral.requestMtu(BleConstants.REQUESTED_MTU)
+        negotiatedMtu = mtu
+        Timber.i("MTU negotiated: requested=%d, granted=%d", BleConstants.REQUESTED_MTU, mtu)
+
+        // Subscribe to TpClassic notifications once and keep the subscription
+        // alive for the lifetime of the connection. This avoids repeated CCCD
+        // enable/disable cycles and the associated race conditions.
+        p.observe(tpClassicCharacteristic)
+            .onEach { data ->
+                Timber.d("TpClassic notification received: %d bytes", data.size)
+                _notifications.send(data)
+            }
+            .launchIn(scope)
+
+        // The CCCD descriptor write is async — wait for it to propagate to
+        // the peripheral so notifications are active before any commands.
+        delay(BleConstants.BLE_OPERATION_DELAY_MS)
+        Timber.d("CCCD subscription settled")
+
         _connectionState.value = PodConnectionState.CONNECTED
         Timber.i("Connection fully established to %s", advertisement.identifier)
     }
@@ -201,13 +232,8 @@ class KablePodConnection(
     }
 
     override fun notifications(): Flow<ByteArray> {
-        val p = peripheral
-            ?: throw IllegalStateException("Not connected — cannot observe notifications")
-
-        return p.observe(tpClassicCharacteristic)
-            .onEach { data ->
-                Timber.d("TpClassic notification received: %d bytes", data.size)
-            }
+        check(peripheral != null) { "Not connected — cannot observe notifications" }
+        return _notifications.receiveAsFlow()
     }
 
     override suspend fun requestMtu(mtu: Int): Result<Int> = runCatching {
