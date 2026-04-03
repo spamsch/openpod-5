@@ -238,10 +238,6 @@ class OmnipodBleServer:
         scan_response_data = bytes(
             AdvertisingData([
                 (AdvertisingData.COMPLETE_LOCAL_NAME, bytes(DEVICE_NAME, 'utf-8')),
-                (
-                    AdvertisingData.COMPLETE_LIST_OF_128_BIT_SERVICE_CLASS_UUIDS,
-                    bytes(BumbleUUID(SERVICE_UUID)),
-                ),
             ])
         )
 
