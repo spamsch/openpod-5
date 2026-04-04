@@ -5,6 +5,29 @@ PI_HOST="${PI_HOST:-openpod@openpod.local}"
 PI_DIR="/home/openpod/emulator"
 LOCAL_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# Parse deploy script flags
+REPLAY_REAL_POD=false
+PUBLIC_ADDRESS=false
+NO_LEGACY_ADV=false
+BLE_ADDRESS=""
+UNPAIRED_UUID_INDEX=""
+for arg in "$@"; do
+  case "$arg" in
+    --replay-real-pod)       REPLAY_REAL_POD=true ;;
+    --public-address)        PUBLIC_ADDRESS=true ;;
+    --no-legacy-adv)         NO_LEGACY_ADV=true ;;
+    --ble-address=*)         BLE_ADDRESS="${arg#*=}" ;;
+    --unpaired-uuid-index=*) UNPAIRED_UUID_INDEX="${arg#*=}" ;;
+    *)
+      echo "ERROR: Unknown flag: $arg" >&2
+      echo "  Valid flags: --replay-real-pod --public-address --no-legacy-adv --ble-address=XX:XX:XX:XX:XX:XX --unpaired-uuid-index=0..3" >&2
+      exit 1
+      ;;
+  esac
+done
+
+echo "Deploy flags: replay_real_pod=${REPLAY_REAL_POD} public_address=${PUBLIC_ADDRESS} no_legacy_adv=${NO_LEGACY_ADV} ble_address=${BLE_ADDRESS:-<default>} unpaired_uuid_index=${UNPAIRED_UUID_INDEX:-0}"
+
 # Extract user and hostname from user@host format
 PI_USER="${PI_HOST%%@*}"
 PI_HOSTNAME="${PI_HOST#*@}"
@@ -141,7 +164,32 @@ echo "Reinstalling package on Pi ..."
 ssh "$PI_HOST" "cd ${PI_DIR} && .venv/bin/pip install -e . --quiet"
 
 echo "Installing systemd service ..."
-ssh "$PI_HOST" "sudo cp ${PI_DIR}/openpod-emulator.service /etc/systemd/system/ && sudo systemctl daemon-reload"
+EXTRA_ARGS=""
+if [ "$REPLAY_REAL_POD" = true ]; then
+  EXTRA_ARGS="${EXTRA_ARGS} --replay-real-pod"
+  echo "  >> REPLAY MODE: injecting --replay-real-pod"
+fi
+if [ "$PUBLIC_ADDRESS" = true ]; then
+  EXTRA_ARGS="${EXTRA_ARGS} --public-address"
+  echo "  >> PUBLIC ADDRESS: injecting --public-address"
+fi
+if [ "$NO_LEGACY_ADV" = true ]; then
+  EXTRA_ARGS="${EXTRA_ARGS} --no-legacy-adv"
+  echo "  >> EXTENDED ADV: injecting --no-legacy-adv"
+fi
+if [ -n "$BLE_ADDRESS" ]; then
+  EXTRA_ARGS="${EXTRA_ARGS} --ble-address ${BLE_ADDRESS}"
+  echo "  >> BLE ADDRESS: injecting --ble-address ${BLE_ADDRESS}"
+fi
+if [ -n "$UNPAIRED_UUID_INDEX" ]; then
+  EXTRA_ARGS="${EXTRA_ARGS} --unpaired-uuid-index ${UNPAIRED_UUID_INDEX}"
+  echo "  >> UNPAIRED UUID INDEX: injecting --unpaired-uuid-index ${UNPAIRED_UUID_INDEX}"
+fi
+if [ -n "$EXTRA_ARGS" ]; then
+  ssh "$PI_HOST" "sed 's|--log-file|${EXTRA_ARGS} --log-file|' ${PI_DIR}/openpod-emulator.service | sudo tee /etc/systemd/system/openpod-emulator.service >/dev/null && sudo systemctl daemon-reload"
+else
+  ssh "$PI_HOST" "sudo cp ${PI_DIR}/openpod-emulator.service /etc/systemd/system/ && sudo systemctl daemon-reload"
+fi
 
 echo "Restarting emulator service ..."
 ssh "$PI_HOST" "sudo systemctl restart openpod-emulator"
