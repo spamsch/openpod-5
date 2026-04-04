@@ -1,0 +1,441 @@
+=== Omnipod Scan started Sat Apr 04 00:56:19 GMT+02:00 2026 ===
+
+[00:56:19.151] Device: Govee_H6072_388C  [C2:36:39:34:38:8C]
+RSSI: -59 dBm
+Manufacturer Data:
+  Company ID: 0x8802 (34818)
+  Data (5 bytes): EC 00 02 01 01
+Raw AD (62 bytes):
+  02 01 06 11 09 47 6F 76 65 65 5F 48 36 30 37 32
+  5F 33 38 38 43 08 FF 02 88 EC 00 02 01 01 11 09
+  47 6F 76 65 65 5F 48 36 30 37 32 5F 33 38 38 43
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00
+AD Structures:
+  [type=0x01 len=2] Flags: 06
+  [type=0x09 len=17] Complete Name: 47 6F 76 65 65 5F 48 36 30 37 32 5F 33 38 38 43
+  [type=0xFF len=8] Manufacturer Data: 02 88 EC 00 02 01 01
+  [type=0x09 len=17] Complete Name: 47 6F 76 65 65 5F 48 36 30 37 32 5F 33 38 38 43
+
+
+[00:56:19.216] Device: Govee_H6061_175A  [CD:38:30:33:17:5A]
+RSSI: -68 dBm
+Manufacturer Data:
+  Company ID: 0x8803 (34819)
+  Data (5 bytes): EC 00 01 03 01
+Raw AD (62 bytes):
+  02 01 06 11 09 47 6F 76 65 65 5F 48 36 30 36 31
+  5F 31 37 35 41 08 FF 03 88 EC 00 01 03 01 11 09
+  47 6F 76 65 65 5F 48 36 30 36 31 5F 31 37 35 41
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00
+AD Structures:
+  [type=0x01 len=2] Flags: 06
+  [type=0x09 len=17] Complete Name: 47 6F 76 65 65 5F 48 36 30 36 31 5F 31 37 35 41
+  [type=0xFF len=8] Manufacturer Data: 03 88 EC 00 01 03 01
+  [type=0x09 len=17] Complete Name: 47 6F 76 65 65 5F 48 36 30 36 31 5F 31 37 35 41
+
+
+[00:56:19.219] Device: GBK_H61A2_B3DB  [D4:AD:FC:6C:B3:DB]
+RSSI: -44 dBm
+Manufacturer Data:
+  Company ID: 0x8802 (34818)
+  Data (5 bytes): EC 00 02 01 01
+Raw AD (62 bytes):
+  0F 09 47 42 4B 5F 48 36 31 41 32 5F 42 33 44 42
+  08 FF 02 88 EC 00 02 01 01 02 01 05 0F 09 47 42
+  4B 5F 48 36 31 41 32 5F 42 33 44 42 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00
+AD Structures:
+  [type=0x09 len=15] Complete Name: 47 42 4B 5F 48 36 31 41 32 5F 42 33 44 42
+  [type=0xFF len=8] Manufacturer Data: 02 88 EC 00 02 01 01
+  [type=0x01 len=2] Flags: 05
+  [type=0x09 len=15] Complete Name: 47 42 4B 5F 48 36 31 41 32 5F 42 33 44 42
+
+
+[00:56:19.224] Device: (no name)  [F0:B3:EC:6B:AE:C9]
+RSSI: -84 dBm
+Manufacturer Data:
+  Company ID: 0x004C (76)
+  Data (7 bytes): 10 05 08 14 6E 29 60
+Raw AD (62 bytes):
+  02 01 1A 02 0A 0C 0A FF 4C 00 10 05 08 14 6E 29
+  60 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00
+AD Structures:
+  [type=0x01 len=2] Flags: 1A
+  [type=0x0A len=2] Type 10: 0C
+  [type=0xFF len=10] Manufacturer Data: 4C 00 10 05 08 14 6E 29 60
+
+
+[00:56:19.284] Device: (no name)  [62:6E:54:4C:E8:BD]
+RSSI: -89 dBm
+Manufacturer Data:
+  Company ID: 0x004C (76)
+  Data (20 bytes): 09 08 13 0F C0 A8 01 91 1B 58 16 08 00 DD C7 07
+  34 99 59 0C
+Raw AD (62 bytes):
+  02 01 1A 17 FF 4C 00 09 08 13 0F C0 A8 01 91 1B
+  58 16 08 00 DD C7 07 34 99 59 0C 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00
+AD Structures:
+  [type=0x01 len=2] Flags: 1A
+  [type=0xFF len=23] Manufacturer Data: 4C 00 09 08 13 0F C0 A8 01 91 1B 58 16 08 00 DD
+  C7 07 34 99 59 0C
+
+
+[00:56:19.286] Device: SugarPixel-Oben  [78:1C:3C:EF:B4:4E]
+RSSI: -95 dBm
+Raw AD (62 bytes):
+  02 01 06 10 09 53 75 67 61 72 50 69 78 65 6C 2D
+  4F 62 65 6E 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00
+AD Structures:
+  [type=0x01 len=2] Flags: 06
+  [type=0x09 len=16] Complete Name: 53 75 67 61 72 50 69 78 65 6C 2D 4F 62 65 6E
+
+
+[00:56:19.290] Device: (no name)  [53:5C:87:7E:86:16]
+RSSI: -56 dBm
+Manufacturer Data:
+  Company ID: 0x004C (76)
+  Data (26 bytes): 10 07 39 1F F7 A0 96 6C 18 01 00 00 00 00 00 00
+  00 00 00 00 00 00 80 00 00 00
+Raw AD (62 bytes):
+  02 01 1A 02 0A 08 0C FF 4C 00 10 07 39 1F F7 A0
+  96 6C 18 14 FF 4C 00 01 00 00 00 00 00 00 00 00
+  00 00 00 00 80 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00
+AD Structures:
+  [type=0x01 len=2] Flags: 1A
+  [type=0x0A len=2] Type 10: 08
+  [type=0xFF len=12] Manufacturer Data: 4C 00 10 07 39 1F F7 A0 96 6C 18
+  [type=0xFF len=20] Manufacturer Data: 4C 00 01 00 00 00 00 00 00 00 00 00 00 00 00 80
+  00 00 00
+
+
+[00:56:19.291] Device: (no name)  [6D:ED:42:8D:78:58]
+RSSI: -56 dBm
+Manufacturer Data:
+  Company ID: 0x004C (76)
+  Data (20 bytes): 09 08 13 12 C0 A8 01 74 1B 58 16 08 00 37 9B 75
+  12 4E BC 02
+Raw AD (62 bytes):
+  02 01 1A 17 FF 4C 00 09 08 13 12 C0 A8 01 74 1B
+  58 16 08 00 37 9B 75 12 4E BC 02 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00
+AD Structures:
+  [type=0x01 len=2] Flags: 1A
+  [type=0xFF len=23] Manufacturer Data: 4C 00 09 08 13 12 C0 A8 01 74 1B 58 16 08 00 37
+  9B 75 12 4E BC 02
+
+
+[00:56:19.293] Device: (no name)  [5A:86:B7:E7:6C:95]
+RSSI: -58 dBm
+Manufacturer Data:
+  Company ID: 0x004C (76)
+  Data (8 bytes): 10 06 4B 1D 73 17 73 28
+Raw AD (62 bytes):
+  02 01 1A 02 0A 0C 0B FF 4C 00 10 06 4B 1D 73 17
+  73 28 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00
+AD Structures:
+  [type=0x01 len=2] Flags: 1A
+  [type=0x0A len=2] Type 10: 0C
+  [type=0xFF len=11] Manufacturer Data: 4C 00 10 06 4B 1D 73 17 73 28
+
+
+[00:56:19.356] Device: (no name)  [51:9A:E4:C7:0F:86]
+RSSI: -95 dBm
+Manufacturer Data:
+  Company ID: 0x004C (76)
+  Data (9 bytes): 10 07 31 1F 50 D3 F4 D3 48
+Raw AD (62 bytes):
+  02 01 1A 0C FF 4C 00 10 07 31 1F 50 D3 F4 D3 48
+  02 0A 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00
+AD Structures:
+  [type=0x01 len=2] Flags: 1A
+  [type=0xFF len=12] Manufacturer Data: 4C 00 10 07 31 1F 50 D3 F4 D3 48
+  [type=0x0A len=2] Type 10: 00
+
+
+[00:56:19.360] Device: Core300s  [10:97:BD:46:6F:C2]
+RSSI: -79 dBm
+Manufacturer Data:
+  Company ID: 0x06D0 (1744)
+  Data (12 bytes): 01 C2 6F 46 BD 97 10 C6 2E 02 02 00
+Raw AD (62 bytes):
+  02 01 06 0F FF D0 06 01 C2 6F 46 BD 97 10 C6 2E
+  02 02 00 09 09 43 6F 72 65 33 30 30 73 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00
+AD Structures:
+  [type=0x01 len=2] Flags: 06
+  [type=0xFF len=15] Manufacturer Data: D0 06 01 C2 6F 46 BD 97 10 C6 2E 02 02 00
+  [type=0x09 len=9] Complete Name: 43 6F 72 65 33 30 30 73
+
+
+[00:56:19.896] Device: (no name)  [75:92:43:48:E3:42]
+RSSI: -54 dBm
+Manufacturer Data:
+  Company ID: 0x004C (76)
+  Data (8 bytes): 10 06 4B 1D 73 17 73 28
+Raw AD (62 bytes):
+  02 01 1A 02 0A 0C 0B FF 4C 00 10 06 4B 1D 73 17
+  73 28 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00
+AD Structures:
+  [type=0x01 len=2] Flags: 1A
+  [type=0x0A len=2] Type 10: 0C
+  [type=0xFF len=11] Manufacturer Data: 4C 00 10 06 4B 1D 73 17 73 28
+
+
+[00:56:19.962] Device: (no name)  [7E:55:83:EB:93:E2]
+RSSI: -76 dBm
+Manufacturer Data:
+  Company ID: 0x004C (76)
+  Data (8 bytes): 10 06 0C 1D 39 1E 3A 48
+Raw AD (62 bytes):
+  02 01 1A 02 0A 0B 0B FF 4C 00 10 06 0C 1D 39 1E
+  3A 48 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00
+AD Structures:
+  [type=0x01 len=2] Flags: 1A
+  [type=0x0A len=2] Type 10: 0B
+  [type=0xFF len=11] Manufacturer Data: 4C 00 10 06 0C 1D 39 1E 3A 48
+
+
+[00:56:19.963] Device: (no name)  [DC:D7:E5:E1:E0:7E]
+RSSI: -98 dBm
+Manufacturer Data:
+  Company ID: 0x004C (76)
+  Data (4 bytes): 12 02 00 00
+Raw AD (62 bytes):
+  07 FF 4C 00 12 02 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00
+AD Structures:
+  [type=0xFF len=7] Manufacturer Data: 4C 00 12 02 00 00
+
+
+[00:56:19.965] Device: Govee_H6072_5288  [C8:36:39:34:52:88]
+RSSI: -42 dBm
+Manufacturer Data:
+  Company ID: 0x8802 (34818)
+  Data (5 bytes): EC 00 02 01 01
+Raw AD (62 bytes):
+  02 01 06 11 09 47 6F 76 65 65 5F 48 36 30 37 32
+  5F 35 32 38 38 08 FF 02 88 EC 00 02 01 01 11 09
+  47 6F 76 65 65 5F 48 36 30 37 32 5F 35 32 38 38
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00
+AD Structures:
+  [type=0x01 len=2] Flags: 06
+  [type=0x09 len=17] Complete Name: 47 6F 76 65 65 5F 48 36 30 37 32 5F 35 32 38 38
+  [type=0xFF len=8] Manufacturer Data: 02 88 EC 00 02 01 01
+  [type=0x09 len=17] Complete Name: 47 6F 76 65 65 5F 48 36 30 37 32 5F 35 32 38 38
+
+
+[00:56:20.686] Device: (no name)  [FE:89:7E:14:CB:85]
+RSSI: -96 dBm
+Manufacturer Data:
+  Company ID: 0x004C (76)
+  Data (4 bytes): 12 02 00 01
+Raw AD (62 bytes):
+  07 FF 4C 00 12 02 00 01 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00
+AD Structures:
+  [type=0xFF len=7] Manufacturer Data: 4C 00 12 02 00 01
+
+
+[00:56:21.600] Device: (no name)  [CD:1C:AB:C8:FD:A6]
+RSSI: -95 dBm
+Manufacturer Data:
+  Company ID: 0x004C (76)
+  Data (4 bytes): 12 02 00 03
+Raw AD (62 bytes):
+  07 FF 4C 00 12 02 00 03 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00
+AD Structures:
+  [type=0xFF len=7] Manufacturer Data: 4C 00 12 02 00 03
+
+
+[00:56:22.177] Device: GVH600D50FA  [0C:4E:A0:88:50:FA]
+RSSI: -96 dBm
+Manufacturer Data:
+  Company ID: 0x8802 (34818)
+  Data (6 bytes): EC 00 01 01 00 00
+Raw AD (62 bytes):
+  02 01 06 0C 09 47 56 48 36 30 30 44 35 30 46 41
+  09 FF 02 88 EC 00 01 01 00 00 03 19 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00
+AD Structures:
+  [type=0x01 len=2] Flags: 06
+  [type=0x09 len=12] Complete Name: 47 56 48 36 30 30 44 35 30 46 41
+  [type=0xFF len=9] Manufacturer Data: 02 88 EC 00 01 01 00 00
+  [type=0x19 len=3] Type 25: 00 00
+
+
+[00:56:22.289] ========== OMNIPOD FOUND ==========
+Device: AP 0000E001 0F00EMU100000001  [FF:4F:64:40:5F:5D]
+RSSI: -42 dBm
+Service UUIDs:
+  ce1f923d-c539-48ea-7300-0afffffffe00  <-- OMNIPOD SCAN UUID
+    UUID LE bytes: 00 FE FF FF FF 0A 00 73 EA 48 39 C5 3D 92 1F CE
+    Profile ID: 10 (VALID)
+    Pod ID base: 0xFFFFFFFE (4294967294)  [UNPAIRED]
+Manufacturer Data:
+  Company ID: 0x0360 (864)
+  Data (5 bytes): 00 02 10 00 00
+  --- Omnipod decode ---
+    Pod ID adj bits: 1
+    Alarm code: 0x00
+    Alert code: 0x00
+    Service type: 0x2470 (NO_DATA (default))
+Raw AD (62 bytes):
+  02 01 06 11 06 00 FE FF FF FF 0A 00 73 EA 48 39
+  C5 3D 92 1F CE 08 FF 60 03 00 02 10 00 00 1D 09
+  41 50 20 30 30 30 30 45 30 30 31 20 30 46 30 30
+  45 4D 55 31 30 30 30 30 30 30 30 31 00 00
+AD Structures:
+  [type=0x01 len=2] Flags: 06
+  [type=0x06 len=17] Incomplete 128-bit UUIDs: 00 FE FF FF FF 0A 00 73 EA 48 39 C5 3D 92 1F CE
+  [type=0xFF len=8] Manufacturer Data: 60 03 00 02 10 00 00
+  [type=0x09 len=29] Complete Name: 41 50 20 30 30 30 30 45 30 30 31 20 30 46 30 30
+  45 4D 55 31 30 30 30 30 30 30 30 31
+====================================
+
+
+[00:56:23.066] Device: (no name)  [E5:E1:A3:4A:1D:12]
+RSSI: -49 dBm
+Manufacturer Data:
+  Company ID: 0x004C (76)
+  Data (4 bytes): 12 02 00 03
+Raw AD (62 bytes):
+  07 FF 4C 00 12 02 00 03 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00
+AD Structures:
+  [type=0xFF len=7] Manufacturer Data: 4C 00 12 02 00 03
+
+
+[00:56:23.141] Device: (no name)  [FC:E2:DD:4C:70:E7]
+RSSI: -56 dBm
+Manufacturer Data:
+  Company ID: 0x004C (76)
+  Data (4 bytes): 12 02 00 03
+Raw AD (62 bytes):
+  07 FF 4C 00 12 02 00 03 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00
+AD Structures:
+  [type=0xFF len=7] Manufacturer Data: 4C 00 12 02 00 03
+
+
+[00:56:23.741] Device: (no name)  [FB:B0:FD:AA:F5:87]
+RSSI: -88 dBm
+Manufacturer Data:
+  Company ID: 0x004C (76)
+  Data (4 bytes): 12 02 00 00
+Raw AD (62 bytes):
+  07 FF 4C 00 12 02 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00
+AD Structures:
+  [type=0xFF len=7] Manufacturer Data: 4C 00 12 02 00 00
+
+
+[00:56:24.404] Device: (no name)  [E6:2A:B1:52:85:D1]
+RSSI: -76 dBm
+Manufacturer Data:
+  Company ID: 0x004C (76)
+  Data (4 bytes): 12 02 00 03
+Raw AD (62 bytes):
+  07 FF 4C 00 12 02 00 03 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00
+AD Structures:
+  [type=0xFF len=7] Manufacturer Data: 4C 00 12 02 00 03
+
+
+[00:56:24.487] Device: (no name)  [D2:CD:1B:C2:ED:61]
+RSSI: -63 dBm
+Manufacturer Data:
+  Company ID: 0x004C (76)
+  Data (23 bytes): 12 02 6E 01 07 11 06 7B 8C D1 6E F8 A8 DF B4 AE
+  29 29 03 3D EB 41 E5
+Raw AD (62 bytes):
+  1A FF 4C 00 12 02 6E 01 07 11 06 7B 8C D1 6E F8
+  A8 DF B4 AE 29 29 03 3D EB 41 E5 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00
+AD Structures:
+  [type=0xFF len=26] Manufacturer Data: 4C 00 12 02 6E 01 07 11 06 7B 8C D1 6E F8 A8 DF
+  B4 AE 29 29 03 3D EB 41 E5
+
+
+[00:56:26.877] Device: GVH600D833E  [A8:46:74:20:83:3E]
+RSSI: -97 dBm
+Manufacturer Data:
+  Company ID: 0x8802 (34818)
+  Data (6 bytes): EC 00 01 01 00 00
+Raw AD (62 bytes):
+  02 01 06 0C 09 47 56 48 36 30 30 44 38 33 33 45
+  09 FF 02 88 EC 00 01 01 00 00 03 19 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  00 00 00 00 00 00 00 00 00 00 00 00 00 00
+AD Structures:
+  [type=0x01 len=2] Flags: 06
+  [type=0x09 len=12] Complete Name: 47 56 48 36 30 30 44 38 33 33 45
+  [type=0xFF len=9] Manufacturer Data: 02 88 EC 00 01 01 00 00
+  [type=0x19 len=3] Type 25: 00 00
+
+
+[00:56:32.327] ========== OMNIPOD FOUND ==========
+Device: AP 0000E001 0F00EMU100000001  [FF:4F:64:40:5F:5D]
+RSSI: -38 dBm
+Service UUIDs:
+  ce1f923d-c539-48ea-7300-0afffffffe00  <-- OMNIPOD SCAN UUID
+    UUID LE bytes: 00 FE FF FF FF 0A 00 73 EA 48 39 C5 3D 92 1F CE
+    Profile ID: 10 (VALID)
+    Pod ID base: 0xFFFFFFFE (4294967294)  [UNPAIRED]
+Manufacturer Data:
+  Company ID: 0x0360 (864)
+  Data (5 bytes): 00 02 10 00 00
+  --- Omnipod decode ---
+    Pod ID adj bits: 1
+    Alarm code: 0x00
+    Alert code: 0x00
+    Service type: 0x2470 (NO_DATA (default))
+Raw AD (62 bytes):
+  02 01 06 11 06 00 FE FF FF FF 0A 00 73 EA 48 39
+  C5 3D 92 1F CE 08 FF 60 03 00 02 10 00 00 1D 09
+  41 50 20 30 30 30 30 45 30 30 31 20 30 46 30 30
+  45 4D 55 31 30 30 30 30 30 30 30 31 00 00
+AD Structures:
+  [type=0x01 len=2] Flags: 06
+  [type=0x06 len=17] Incomplete 128-bit UUIDs: 00 FE FF FF FF 0A 00 73 EA 48 39 C5 3D 92 1F CE
+  [type=0xFF len=8] Manufacturer Data: 60 03 00 02 10 00 00
+  [type=0x09 len=29] Complete Name: 41 50 20 30 30 30 30 45 30 30 31 20 30 46 30 30
+  45 4D 55 31 30 30 30 30 30 30 30 31
+====================================
+
+
+
+=== Scan ended Sat Apr 04 00:56:38 GMT+02:00 2026 ===
