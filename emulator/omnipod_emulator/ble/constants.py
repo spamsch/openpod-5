@@ -57,21 +57,27 @@ DEFAULT_UNPAIRED_SCAN_UUID = UNPAIRED_SCAN_UUIDS[0]
 """Default UUID used in advertising for a new unpaired pod."""
 
 
-def paired_scan_uuids(ctrl_id: bytes) -> list[str]:
+def paired_scan_uuids(masked_pod_id: bytes) -> list[str]:
     """
-    Derive paired advertising UUIDs from a controller ID.
+    Derive paired advertising UUIDs from the masked pod ID.
 
     After pairing, real pods switch from unpaired UUIDs (``...fffffffe0x``)
-    to controller-specific UUIDs (``...{CTRL_ID}0x``).
+    to pod-specific UUIDs embedding ``pod_id & ~3`` (upper 30 bits).
+    The lower 2 bits are carried separately in manufacturer data byte[4]
+    bits 4-5.  The app stores ``pod_id & ~3`` as ``PREFS_CONTROLLER_ID``
+    and uses these UUIDs as scan filters for reconnection.
+
+    The 4 UUID variants (indices 00-03) are scan filter slots, not
+    related to the pod ID adjustment bits.
 
     Args:
-        ctrl_id: 4-byte controller ID.
+        masked_pod_id: 4-byte ``pod_id & ~3`` (big-endian).
 
     Returns:
         List of 4 UUID strings for paired advertising.
     """
     base = "ce1f923d-c539-48ea-7300-0a"
-    hex_id = ctrl_id.hex()
+    hex_id = masked_pod_id.hex()
     return [f"{base}{hex_id}{i:02x}" for i in range(4)]
 
 # ---------------------------------------------------------------------------
@@ -94,6 +100,9 @@ POD_SERIAL = "0F00EMU100000001"
 # ---------------------------------------------------------------------------
 # Advertising parameters
 # ---------------------------------------------------------------------------
+
+DEFAULT_BLE_ADDRESS = "34:3C:30:C9:64:BD"
+"""Default BLE public address — matches a real unpaired Omnipod 5 capture."""
 
 ADVERTISING_INTERVAL_MS = 100
 """Advertising interval in milliseconds (fast advertising for discovery)."""

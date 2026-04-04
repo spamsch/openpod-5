@@ -89,6 +89,53 @@ def parse_args() -> argparse.Namespace:
             "keeps 3 backups. Example: --log-file /tmp/openpod-emulator.log"
         ),
     )
+    parser.add_argument(
+        "--replay-real-pod",
+        action="store_true",
+        default=False,
+        help=(
+            "Experiment: replay a real pod's exact captured advertisement "
+            "bytes instead of the emulator's own. Useful for isolating "
+            "payload vs transport issues."
+        ),
+    )
+    parser.add_argument(
+        "--no-public-address",
+        action="store_true",
+        default=False,
+        help=(
+            "Use a random static address instead of the BLE adapter's "
+            "public (factory) address. Real pods use public addresses, "
+            "so public is the default."
+        ),
+    )
+    parser.add_argument(
+        "--no-legacy-adv",
+        action="store_true",
+        default=False,
+        help=(
+            "Allow extended advertising (BLE 5.0) if the adapter supports "
+            "it. By default, legacy ADV_IND is forced for compatibility."
+        ),
+    )
+    parser.add_argument(
+        "--ble-address",
+        default="34:3C:30:C9:64:BD",
+        help=(
+            "BLE MAC address for the emulator. "
+            "Default: 34:3C:30:C9:64:BD (from real pod capture)."
+        ),
+    )
+    parser.add_argument(
+        "--unpaired-uuid-index",
+        type=int,
+        default=0,
+        choices=[0, 1, 2, 3],
+        help=(
+            "Index (0-3) of the unpaired advertising UUID to use. "
+            "0=...fe00, 1=...fe01, 2=...fe02, 3=...fe03. Default: 0"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -174,9 +221,23 @@ def main() -> None:
     if args.mode == "tcp":
         _run_tcp(session, args.tcp_port)
     elif args.mode == "ble":
-        _run_ble(session, args.transport)
+        _run_ble(
+            session, args.transport,
+            replay_real_pod=args.replay_real_pod,
+            public_address=not args.no_public_address,
+            force_legacy=not args.no_legacy_adv,
+            ble_address=args.ble_address,
+            unpaired_uuid_index=args.unpaired_uuid_index,
+        )
     elif args.mode == "both":
-        _run_both(session, args.tcp_port, args.transport)
+        _run_both(
+            session, args.tcp_port, args.transport,
+            replay_real_pod=args.replay_real_pod,
+            public_address=not args.no_public_address,
+            force_legacy=not args.no_legacy_adv,
+            ble_address=args.ble_address,
+            unpaired_uuid_index=args.unpaired_uuid_index,
+        )
 
 
 def _run_tcp(session: ProtocolSession, port: int) -> None:
@@ -192,14 +253,29 @@ def _run_tcp(session: ProtocolSession, port: int) -> None:
         sys.exit(1)
 
 
-def _run_ble(session: ProtocolSession, transport: str) -> None:
+def _run_ble(
+    session: ProtocolSession,
+    transport: str,
+    *,
+    replay_real_pod: bool = False,
+    public_address: bool = False,
+    force_legacy: bool = True,
+    ble_address: str | None = None,
+    unpaired_uuid_index: int = 0,
+) -> None:
     """Run only the BLE server."""
     from omnipod_emulator.ble.server import OmnipodBleServer
 
     ble_server = OmnipodBleServer(
         transport_name=transport,
         on_command=session.on_message,
+        force_legacy_advertising=force_legacy,
+        replay_real_pod_adv=replay_real_pod,
+        use_public_address=public_address,
+        ble_address=ble_address,
+        unpaired_uuid_index=unpaired_uuid_index,
     )
+    session._on_paired = ble_server.set_paired
     logger.info("Starting BLE server on transport %s...", transport)
     try:
         asyncio.run(ble_server.start())
@@ -211,7 +287,15 @@ def _run_ble(session: ProtocolSession, transport: str) -> None:
 
 
 def _run_both(
-    session: ProtocolSession, tcp_port: int, transport: str
+    session: ProtocolSession,
+    tcp_port: int,
+    transport: str,
+    *,
+    replay_real_pod: bool = False,
+    public_address: bool = False,
+    force_legacy: bool = True,
+    ble_address: str | None = None,
+    unpaired_uuid_index: int = 0,
 ) -> None:
     """Run both TCP and BLE servers concurrently."""
     from omnipod_emulator.ble.server import OmnipodBleServer
@@ -220,7 +304,13 @@ def _run_both(
     ble_server = OmnipodBleServer(
         transport_name=transport,
         on_command=session.on_message,
+        force_legacy_advertising=force_legacy,
+        replay_real_pod_adv=replay_real_pod,
+        use_public_address=public_address,
+        ble_address=ble_address,
+        unpaired_uuid_index=unpaired_uuid_index,
     )
+    session._on_paired = ble_server.set_paired
 
     async def run() -> None:
         await asyncio.gather(

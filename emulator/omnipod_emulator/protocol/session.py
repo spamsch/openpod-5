@@ -27,6 +27,7 @@ import enum
 import logging
 import os
 import struct
+from collections.abc import Callable
 
 from omnipod_emulator.crypto import aes_ccm
 from omnipod_emulator.crypto.eap_aka import EapAkaSlave, EapAkaState, SessionKeys
@@ -99,6 +100,7 @@ class ProtocolSession:
         firmware_id: bytes,
         *,
         ecdh_seed: bytes | None = None,
+        on_paired: Callable[[], None] | None = None,
     ) -> None:
         if len(firmware_id) != 6:
             raise ValueError(
@@ -108,6 +110,7 @@ class ProtocolSession:
         self._pod_state = pod_state
         self._firmware_id = firmware_id
         self._ecdh_seed = ecdh_seed
+        self._on_paired = on_paired
 
         self._phase = SessionPhase.DISCONNECTED
         self._controller_id: bytes = b""
@@ -368,6 +371,10 @@ class ProtocolSession:
         self._ltk = ltk
 
         logger.info("Pairing COMPLETE: LTK established and stored")
+
+        # Notify BLE server to switch to paired advertising UUIDs
+        if self._on_paired is not None:
+            self._on_paired()
 
         # Initialize EAP-AKA with the derived LTK
         self._eap_aka = EapAkaSlave(ltk=ltk)
