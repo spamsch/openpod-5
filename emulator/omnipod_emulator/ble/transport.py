@@ -278,6 +278,19 @@ class BleTransportProtocol:
         self._state = TransportState.HANDSHAKE_SENT
         logger.info("[TP] State -> HANDSHAKE_SENT")
 
+        # The handshake is one-way: the PDM does NOT send a type-1 ack.
+        # It expects the init response immediately.  Transition to READY
+        # and process the buffered init now so the PDM gets its response.
+        if self._init_data is not None:
+            self._state = TransportState.READY
+            logger.info(
+                "[TP] Buffered init present — immediate READY, "
+                "processing %d bytes",
+                len(self._init_data),
+            )
+            self._handle_app_data(self._init_data, source="cmd_buffered")
+            self._init_data = None
+
     def _handle_handshake_ack(self, data: bytes) -> None:
         """Process the type-1 handshake ack from the phone."""
         if self._state != TransportState.HANDSHAKE_SENT:

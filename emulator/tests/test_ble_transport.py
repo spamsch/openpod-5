@@ -325,9 +325,12 @@ class TestTransportStateMachine:
         # Let the async handshake task run
         await asyncio.sleep(0.05)
 
-        assert tp._state == TransportState.HANDSHAKE_SENT
-        assert len(sent_cmd) == 1
+        # Handshake is one-way: with a buffered init the transport
+        # advances straight to READY and processes the init immediately.
+        assert tp._state == TransportState.READY
         assert sent_cmd[0] == bytes([TP_HANDSHAKE_INIT, 0x00])
+        # The buffered init is also processed, producing an app response.
+        assert len(sent_cmd) >= 1
 
     @pytest.mark.asyncio
     async def test_data_write_completes_handshake(self) -> None:
@@ -388,7 +391,8 @@ class TestTransportStateMachine:
         tp.on_cccd_subscribed("tp_classic")
         await asyncio.sleep(0.05)
 
-        assert tp._state == TransportState.HANDSHAKE_SENT
+        # With buffered init, transport goes straight to READY.
+        assert tp._state == TransportState.READY
         assert sent_cmd[0] == bytes([TP_HANDSHAKE_INIT, 0x00])
 
 

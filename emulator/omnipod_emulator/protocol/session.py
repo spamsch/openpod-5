@@ -588,8 +588,10 @@ class ProtocolSession:
         Commands are ``(name, value)`` tuples parsed from the binary
         RHP payload (e.g. ``("SP1", b"\\x00\\x00\\xc9\\x92")``).
 
-        Returns the binary RHP response payload to be wrapped back in
-        a TWI frame, or ``None`` if no response.
+        Returns a single binary RHP response payload (comma-joined if
+        multiple commands), or ``None`` if no response.  All responses
+        go in one TWI frame so the response sequence number matches
+        the request.
         """
         responses: list[bytes] = []
 
@@ -600,6 +602,8 @@ class ProtocolSession:
                 resp = self._handle_sp2(value)
             elif name == "SPS0":
                 resp = self._handle_sps0(value)
+            elif name == "SPS1":
+                resp = self._handle_sps1(value)
             else:
                 logger.warning(
                     "Unknown TWI command: %s (%d bytes)", name, len(value)
@@ -725,8 +729,11 @@ class ProtocolSession:
                 )
 
         # Build SPS0 acceptance response:
-        # "SPS0=" + \x00 + length + [selector(2), algorithm(1)] + CRC-16
-        inner = value[0:3]  # Echo selector + algorithm
+        # "SPS0=" + length(2) + version(1) + status(1) + algorithm(1) + CRC-16(2)
+        # Request has: version(1) + selector(1) + algorithm(1) + CRC(2)
+        # Response replaces selector byte with status: 0x00 = ACCEPTED_REQUEST
+        STATUS_ACCEPTED = 0x00
+        inner = bytes([value[0], STATUS_ACCEPTED, algorithm_byte])
         crc = crc16_ccitt(inner)
         response_value = inner + crc.to_bytes(2, "big")
         response = b"SPS0=" + bytes([0x00, len(response_value)]) + response_value
@@ -735,17 +742,51 @@ class ProtocolSession:
             "SPS0 response (ACCEPTED): %s", response.hex(),
         )
 
-        # After SPS0, also send SPS1 with pod's key material
-        sps1 = self._build_sps1()
-        if sps1 is not None:
-            return response + b"," + sps1
         return response
+
+    def _handle_sps1(self, value: bytes) -> bytes | None:
+        """
+        SPS1: PDM's ECDH public key + nonce.
+
+        The PDM sends its key material after receiving the SPS0 acceptance.
+        We store the peer's key/nonce and respond with the pod's own
+        key material.
+
+        Value format: pubkey(64 for P-256, 32 for X25519) + nonce(16)
+        """
+        if self._pairing is None or self._pairing._key_pair is None:
+            logger.warning("SPS1: no pairing state or keys")
+            return None
+
+        pod_pub_key_len = len(self._pairing._key_pair.public_key_bytes)
+        nonce_len = 16
+        expected = pod_pub_key_len + nonce_len
+
+        if len(value) < expected:
+            logger.warning(
+                "SPS1 value too short: %d bytes (expected %d)",
+                len(value), expected,
+            )
+            return None
+
+        peer_pubkey = value[0:pod_pub_key_len]
+        peer_nonce = value[pod_pub_key_len:pod_pub_key_len + nonce_len]
+
+        logger.info(
+            "SPS1 RX: peer pubkey=%d bytes, peer nonce=%d bytes",
+            len(peer_pubkey), len(peer_nonce),
+        )
+
+        # Store peer key material for shared secret derivation later.
+        self._pairing.set_peer_data(peer_pubkey, peer_nonce)
+
+        return self._build_sps1()
 
     def _build_sps1(self) -> bytes | None:
         """
-        Build SPS1 response: pod's ECDH nonce + public key.
+        Build SPS1 response: pod's ECDH public key + nonce.
 
-        Reuses the key material already generated during init handling.
+        Format matches the PDM's own SPS1: pubkey first, then nonce.
         """
         if self._pairing is None or self._pairing._key_pair is None:
             logger.warning("SPS1: no pairing state machine or keys not generated")
@@ -754,13 +795,13 @@ class ProtocolSession:
         pub_key = self._pairing._key_pair.public_key_bytes
         nonce = self._pairing._key_pair.nonce
 
-        # SPS1 = nonce(16) + pubkey(32) = 48 bytes
-        sps1_value = nonce + pub_key
+        # SPS1 = pubkey + nonce (pubkey first, matching PDM's format)
+        sps1_value = pub_key + nonce
         response = b"SPS1=" + bytes([0x00, len(sps1_value)]) + sps1_value
 
         logger.info(
-            "SPS1 response: nonce=%d bytes, pubkey=%d bytes",
-            len(nonce), len(pub_key),
+            "SPS1 response: pubkey=%d bytes, nonce=%d bytes",
+            len(pub_key), len(nonce),
         )
 
         return response
