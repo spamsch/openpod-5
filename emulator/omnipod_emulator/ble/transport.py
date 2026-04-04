@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import enum
 import logging
+import zlib
 from collections.abc import Awaitable, Callable
 
 logger = logging.getLogger(__name__)
@@ -171,8 +172,10 @@ class BleTransportProtocol:
             )
             return
 
-        logger.info("[TP] %s write: %d bytes", source, len(data))
-        self._handle_app_data(data, source=source)
+        logger.info("[TP] %s write: %d bytes (framed)", source, len(data))
+        payload = self._strip_transport_frame(data)
+        if payload is not None:
+            self._handle_app_data(payload, source=source)
 
     def on_cccd_subscribed(self, characteristic: str) -> None:
         """
@@ -273,10 +276,86 @@ class BleTransportProtocol:
             self._handle_app_data(self._init_data, source="cmd_buffered")
             self._init_data = None
 
+    # ------------------------------------------------------------------
+    # Transport frame handling
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _strip_transport_frame(data: bytes) -> bytes | None:
+        """
+        Strip the 7-byte transport frame header from incoming data.
+
+        Frame format (phone → pod):
+            Byte 0:    fragment type (0x00 = first/only)
+            Byte 1:    total fragments (0x00 = single frame)
+            Bytes 2-5: CRC-32 (4 bytes)
+            Byte 6:    payload length
+            Bytes 7+:  application payload
+
+        Returns the application payload, or None on error.
+        """
+        if len(data) < 7:
+            logger.warning("[TP] Frame too short: %d bytes", len(data))
+            return None
+
+        fragment_type = data[0]
+        fragment_count = data[1]
+        crc = data[2:6]
+        payload_length = data[6]
+        payload = data[7:]
+
+        if fragment_type != 0x00 or fragment_count != 0x00:
+            logger.warning(
+                "[TP] Multi-fragment not yet supported: "
+                "type=0x%02x, count=%d",
+                fragment_type, fragment_count,
+            )
+            return None
+
+        if len(payload) < payload_length:
+            logger.warning(
+                "[TP] Payload truncated: expected %d, got %d",
+                payload_length, len(payload),
+            )
+
+        logger.info(
+            "[TP] Frame stripped: header=7, payload=%d, crc=%s",
+            payload_length, crc.hex(),
+        )
+        return payload[:payload_length]
+
+    @staticmethod
+    def _build_transport_frame(payload: bytes) -> bytes:
+        """
+        Wrap an application payload in a 7-byte transport frame header.
+
+        Frame format (pod → phone):
+            Byte 0:    0x00 (first/only fragment)
+            Byte 1:    0x00 (single frame)
+            Bytes 2-5: CRC-32 (4 bytes, big-endian)
+            Byte 6:    payload length
+            Bytes 7+:  application payload
+        """
+        crc = zlib.crc32(payload) & 0xFFFFFFFF
+        header = bytes([
+            0x00,                       # fragment type
+            0x00,                       # fragment count
+            (crc >> 24) & 0xFF,         # CRC byte 0 (big-endian)
+            (crc >> 16) & 0xFF,         # CRC byte 1
+            (crc >> 8) & 0xFF,          # CRC byte 2
+            crc & 0xFF,                 # CRC byte 3
+            len(payload) & 0xFF,        # payload length
+        ])
+        return header + payload
+
+    # ------------------------------------------------------------------
+    # Application data forwarding
+    # ------------------------------------------------------------------
+
     def _handle_app_data(self, data: bytes, *, source: str) -> None:
         """
         Forward application data to the session and send the response
-        on TpClassic.
+        on TpClassic (wrapped in a transport frame).
         """
         logger.info(
             "[TP] App data from %s: %d bytes, type=0x%02x",
@@ -295,10 +374,22 @@ class BleTransportProtocol:
             )
 
     async def _send_app_response(self, data: bytes) -> None:
-        """Send application response as indication on TpClassic."""
+        """
+        Send an application response as a transport-framed indication
+        on TpClassic, followed by TP_COMPLETE on CMD.
+        """
         if self._send_tp_classic is None:
             logger.error("[TP] No TpClassic send callback")
             return
 
-        await self._send_tp_classic(data)
-        logger.debug("[TP] TpClassic indication sent: %d bytes", len(data))
+        frame = self._build_transport_frame(data)
+        logger.debug(
+            "[TP] Sending framed response: %d payload + 7 header = %d total",
+            len(data), len(frame),
+        )
+        await self._send_tp_classic(frame)
+
+        # Signal transfer complete on CMD.
+        if self._send_cmd is not None:
+            await self._send_cmd(bytes([TP_COMPLETE]))
+            logger.debug("[TP] Sent TP_COMPLETE on CMD")
