@@ -31,6 +31,13 @@ native_libs/
 __pycache__/
 *.egg-info/
 
+# Scan logs (may contain private data)
+omnipod-scanner/scans/
+
+# ESP32 build artifacts
+esp32-ble-advertiser/.cache/
+esp32-ble-advertiser/sdkconfig.old
+
 # Misc
 captures/
 .externalNativeBuild/
