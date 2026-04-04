@@ -268,7 +268,7 @@ def _run_ble(
 
     ble_server = OmnipodBleServer(
         transport_name=transport,
-        on_command=session.on_message,
+        on_app_message=session.on_message,
         force_legacy_advertising=force_legacy,
         replay_real_pod_adv=replay_real_pod,
         use_public_address=public_address,
@@ -303,7 +303,7 @@ def _run_both(
     tcp_server = TcpProtocolServer(session, port=tcp_port)
     ble_server = OmnipodBleServer(
         transport_name=transport,
-        on_command=session.on_message,
+        on_app_message=session.on_message,
         force_legacy_advertising=force_legacy,
         replay_real_pod_adv=replay_real_pod,
         use_public_address=public_address,
