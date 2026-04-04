@@ -30,6 +30,7 @@ import struct
 from collections.abc import Callable
 
 from omnipod_emulator.crypto import aes_ccm
+from omnipod_emulator.crypto.crc16 import crc16_ccitt
 from omnipod_emulator.crypto.eap_aka import EapAkaSlave, EapAkaState, SessionKeys
 from omnipod_emulator.pod.state import PodState
 from omnipod_emulator.protocol.pairing import PairingStateMachine
@@ -572,6 +573,171 @@ class ProtocolSession:
         """
         logger.info("Pod deactivated: clearing LTK for fresh pairing")
         self._ltk = None
+
+    # ------------------------------------------------------------------
+    # TWI command handler (SIM Profile setup)
+    # ------------------------------------------------------------------
+
+    def on_twi_commands(
+        self, commands: list[tuple[str, bytes]]
+    ) -> bytes | None:
+        """
+        Handle TWI-framed SIM Profile commands from the phone.
+
+        Called by the transport layer after stripping the TWI header.
+        Commands are ``(name, value)`` tuples parsed from the binary
+        RHP payload (e.g. ``("SP1", b"\\x00\\x00\\xc9\\x92")``).
+
+        Returns the binary RHP response payload to be wrapped back in
+        a TWI frame, or ``None`` if no response.
+        """
+        responses: list[bytes] = []
+
+        for name, value in commands:
+            if name == "SP1":
+                resp = self._handle_sp1(value)
+            elif name == "SP2":
+                resp = self._handle_sp2(value)
+            elif name == "SPS0":
+                resp = self._handle_sps0(value)
+            else:
+                logger.warning(
+                    "Unknown TWI command: %s (%d bytes)", name, len(value)
+                )
+                resp = None
+
+            if resp is not None:
+                responses.append(resp)
+
+        if not responses:
+            return None
+        return b",".join(responses)
+
+    def _handle_sp1(self, value: bytes) -> bytes | None:
+        """
+        SP1: Controller ID registration.
+
+        Value: 4-byte controller ID (BE) with peripheral index in low 2 bits.
+        """
+        if len(value) < 4:
+            logger.warning("SP1 value too short: %d bytes", len(value))
+            return None
+
+        ctrl_id = int.from_bytes(value[0:4], "big")
+        peripheral_index = ctrl_id & 0x03
+        self._controller_id = value[0:4]
+
+        logger.info(
+            "SP1: controller_id=0x%08x, peripheral_index=%d",
+            ctrl_id, peripheral_index,
+        )
+
+        # Acknowledge with success
+        return b"ESSP1.0=0"
+
+    def _handle_sp2(self, value: bytes) -> bytes | None:
+        """
+        SP2: Device capabilities and AKA parameters.
+
+        Value: controller_id(4) + pad(1) + device_type(1) + features(1)
+               + algo_mode(1) + pad(1) + crc16(2)
+        """
+        if len(value) < 9:
+            logger.warning("SP2 value too short: %d bytes", len(value))
+            return None
+
+        ctrl_id = int.from_bytes(value[0:4], "big")
+        device_type = value[5] if len(value) > 5 else 0
+        feature_flags = value[6] if len(value) > 6 else 0
+        algorithm_mode = value[7] if len(value) > 7 else 0
+
+        logger.info(
+            "SP2: controller_id=0x%08x, device_type=0x%02x, "
+            "features=0x%02x, algo_mode=0x%02x, raw=%s",
+            ctrl_id, device_type, feature_flags, algorithm_mode,
+            value.hex(),
+        )
+
+        # Acknowledge with success
+        return b"ESSP2.0=0"
+
+    def _handle_sps0(self, value: bytes) -> bytes | None:
+        """
+        SPS0: Algorithm negotiation.
+
+        Value: selector(2) + algorithm_byte(1) + crc16(2)
+
+        Algorithm bytes (from EnumC3934an.java):
+            0x00 = Curve25519, no password, no cert
+            0x08 = Curve25519, no password, with cert
+            0x01 = P-256, no password, no cert
+            0x09 = P-256, no password, with cert
+            0x0D = P-256, password, with cert
+
+        Responds with SPS0 acceptance echoing the algorithm byte.
+        """
+        if len(value) < 3:
+            logger.warning("SPS0 value too short: %d bytes", len(value))
+            return None
+
+        selector = int.from_bytes(value[0:2], "big")
+        algorithm_byte = value[2]
+
+        algo_names = {
+            0x00: "CURVE25519_NO_PWD_NO_CERT",
+            0x08: "CURVE25519_NO_PWD_CERT",
+            0x01: "P256_NO_PWD_NO_CERT",
+            0x05: "P256_PWD_NO_CERT",
+            0x09: "P256_NO_PWD_CERT",
+            0x0D: "P256_PWD_CERT",
+        }
+        algo_name = algo_names.get(algorithm_byte, f"UNKNOWN(0x{algorithm_byte:02x})")
+
+        logger.info(
+            "SPS0: selector=%d, algorithm=0x%02x (%s)",
+            selector, algorithm_byte, algo_name,
+        )
+
+        # Build SPS0 acceptance response:
+        # "SPS0=" + \x00 + length + [selector(2), algorithm(1)] + CRC-16
+        inner = value[0:3]  # Echo selector + algorithm
+        crc = crc16_ccitt(inner)
+        response_value = inner + crc.to_bytes(2, "big")
+        response = b"SPS0=" + bytes([0x00, len(response_value)]) + response_value
+
+        logger.info(
+            "SPS0 response (ACCEPTED): %s", response.hex(),
+        )
+
+        # After SPS0, also send SPS1 with pod's key material
+        sps1 = self._build_sps1()
+        if sps1 is not None:
+            return response + b"," + sps1
+        return response
+
+    def _build_sps1(self) -> bytes | None:
+        """
+        Build SPS1 response: pod's ECDH nonce + public key.
+
+        Reuses the key material already generated during init handling.
+        """
+        if self._pairing is None or self._pairing._key_pair is None:
+            logger.warning("SPS1: no pairing state machine or keys not generated")
+            return None
+
+        pub_key = self._pairing._key_pair.public_key_bytes
+        nonce = self._pairing._key_pair.nonce
+
+        # SPS1 = nonce(16) + pubkey(32) = 48 bytes
+        sps1_value = nonce + pub_key
+        response = b"SPS1=" + bytes([0x00, len(sps1_value)]) + sps1_value
+
+        logger.info(
+            "SPS1 response: nonce=%d bytes, pubkey=%d bytes",
+            len(nonce), len(pub_key),
+        )
+
+        return response
 
     def on_disconnect(self) -> None:
         """

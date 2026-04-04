@@ -22,13 +22,14 @@ from __future__ import annotations
 import asyncio
 import enum
 import logging
+import struct
 import zlib
 from collections.abc import Awaitable, Callable
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Transport message types (first byte)
+# Transport message types (first byte on CMD)
 # ---------------------------------------------------------------------------
 
 TP_HANDSHAKE_INIT = 0x00
@@ -40,6 +41,17 @@ TP_FAILED = 0x05
 
 # Application init command written to CMD before the handshake.
 APP_MSG_INIT = 0x06
+
+# ---------------------------------------------------------------------------
+# TWICommand binary header ("TW" magic)
+# ---------------------------------------------------------------------------
+
+TWI_MAGIC = b"TW"
+TWI_HEADER_SIZE = 16
+
+# ---------------------------------------------------------------------------
+# Timing
+# ---------------------------------------------------------------------------
 
 # Timeout (seconds) waiting for CCCD subscriptions after init.
 CCCD_TIMEOUT_SECONDS = 5.0
@@ -67,8 +79,10 @@ class BleTransportProtocol:
     def __init__(
         self,
         on_app_message: Callable[[bytes], bytes | None],
+        on_twi_commands: Callable[[list[tuple[str, bytes]]], bytes | None] | None = None,
     ) -> None:
         self._on_app_message = on_app_message
+        self._on_twi_handler = on_twi_commands
         self._state = TransportState.IDLE
 
         # Send callbacks — set by server after construction.
@@ -84,6 +98,11 @@ class BleTransportProtocol:
 
         # Timeout task handle for CCCD wait.
         self._cccd_timeout_task: asyncio.Task | None = None
+
+        # TWICommand context (populated from incoming TWI frames).
+        self._twi_sequence: int = 0
+        self._twi_controller_id: bytes = b"\x00" * 4
+        self._twi_pod_id: bytes = b"\xff\xff\xff\xfe"
 
     def set_send_callbacks(
         self,
@@ -108,6 +127,7 @@ class BleTransportProtocol:
         if self._cccd_timeout_task is not None:
             self._cccd_timeout_task.cancel()
             self._cccd_timeout_task = None
+        self._twi_sequence = 0
         logger.info("Transport reset to IDLE")
 
     # ------------------------------------------------------------------
@@ -349,29 +369,200 @@ class BleTransportProtocol:
         return header + payload
 
     # ------------------------------------------------------------------
+    # TWICommand header handling
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _strip_twi_header(data: bytes) -> tuple[dict, bytes] | None:
+        """
+        Parse the 16-byte TWI header.  Returns ``(meta, rhp_payload)``
+        or ``None`` if the data is not TWI-framed.
+
+        Header layout (16 bytes):
+            0-1:   "TW" magic
+            2-3:   version (0x10 0x03)
+            4:     sequence id
+            5-6:   command count (BE16)
+            7:     flags (0x80 = unencrypted)
+            8-11:  controller id (BE32)
+            12-15: pod id (BE32)
+        """
+        if len(data) < TWI_HEADER_SIZE or data[0:2] != TWI_MAGIC:
+            return None
+        meta = {
+            "sequence": data[4],
+            "cmd_count": struct.unpack(">H", data[5:7])[0],
+            "flags": data[7],
+            "controller_id": data[8:12],
+            "pod_id": data[12:16],
+        }
+        return meta, data[TWI_HEADER_SIZE:]
+
+    @staticmethod
+    def _build_twi_header(
+        sequence: int,
+        cmd_count: int,
+        controller_id: bytes,
+        pod_id: bytes,
+    ) -> bytes:
+        """Build a 16-byte TWI response header."""
+        return (
+            TWI_MAGIC
+            + b"\x10\x03"
+            + bytes([sequence & 0xFF])
+            + struct.pack(">H", cmd_count)
+            + b"\x80"
+            + controller_id[:4]
+            + pod_id[:4]
+        )
+
+    @staticmethod
+    def parse_sp_commands(payload: bytes) -> list[tuple[str, bytes]]:
+        """
+        Parse binary RHP SIM-profile commands from a TWI payload.
+
+        Format: ``NAME=\\x00{length}{value}[,NAME=...]``
+
+        Each command is ``{name}=`` followed by ``\\x00`` (binary mode
+        marker), a 1-byte length, then *length* bytes of value.
+        Commands are separated by ``,`` (0x2c).
+
+        Returns a list of ``(name, value)`` tuples.
+        """
+        commands: list[tuple[str, bytes]] = []
+        pos = 0
+        while pos < len(payload):
+            # Find the '=' separator
+            eq_pos = payload.find(b"=", pos)
+            if eq_pos < 0:
+                break
+            name = payload[pos:eq_pos].decode("ascii", errors="replace")
+
+            # After '=' expect \x00 then length byte
+            val_start = eq_pos + 1
+            if val_start + 2 > len(payload):
+                break
+            if payload[val_start] != 0x00:
+                # Not binary-encoded — skip to next comma or end
+                comma = payload.find(b",", val_start)
+                if comma < 0:
+                    break
+                pos = comma + 1
+                continue
+
+            length = payload[val_start + 1]
+            value = payload[val_start + 2 : val_start + 2 + length]
+            commands.append((name, value))
+
+            # Advance past value + optional comma separator
+            pos = val_start + 2 + length
+            if pos < len(payload) and payload[pos:pos + 1] == b",":
+                pos += 1
+
+        return commands
+
+    # ------------------------------------------------------------------
     # Application data forwarding
     # ------------------------------------------------------------------
 
     def _handle_app_data(self, data: bytes, *, source: str) -> None:
         """
-        Forward application data to the session and send the response
-        on TpClassic (wrapped in a transport frame).
+        Forward application data to the session.
+
+        Detects TWI framing (``"TW"`` magic) and handles it separately
+        from raw application messages (init 0x06, pairing 0x10, etc.).
         """
+        if len(data) >= TWI_HEADER_SIZE and data[0:2] == TWI_MAGIC:
+            self._handle_twi_message(data, source=source)
+        else:
+            logger.info(
+                "[TP] Raw app data from %s: %d bytes, type=0x%02x",
+                source, len(data), data[0] if data else 0,
+            )
+            response = self._on_app_message(data)
+            if response is not None:
+                logger.info(
+                    "[TP] App response: %d bytes, sending on TpClassic",
+                    len(response),
+                )
+                asyncio.get_event_loop().create_task(
+                    self._send_app_response(response)
+                )
+
+    def _handle_twi_message(self, data: bytes, *, source: str) -> None:
+        """
+        Process a TWI-framed message: strip header, parse SP commands,
+        forward to session, wrap and send response.
+        """
+        result = self._strip_twi_header(data)
+        if result is None:
+            logger.warning("[TP] TWI header parse failed")
+            return
+
+        meta, rhp_payload = result
+        self._twi_controller_id = meta["controller_id"]
+        self._twi_pod_id = meta["pod_id"]
+
         logger.info(
-            "[TP] App data from %s: %d bytes, type=0x%02x",
-            source, len(data), data[0] if data else 0,
+            "[TP] TWI: seq=%d, count=%d, flags=0x%02x, "
+            "ctrl=%s, pod=%s, payload=%d bytes",
+            meta["sequence"],
+            meta["cmd_count"],
+            meta["flags"],
+            meta["controller_id"].hex(),
+            meta["pod_id"].hex(),
+            len(rhp_payload),
         )
 
-        response = self._on_app_message(data)
+        # Parse the binary RHP commands in the payload.
+        commands = self.parse_sp_commands(rhp_payload)
+        if not commands:
+            logger.warning(
+                "[TP] No SP commands parsed from TWI payload: %s",
+                rhp_payload.hex(),
+            )
+            return
 
-        if response is not None:
+        for name, value in commands:
             logger.info(
-                "[TP] App response: %d bytes, sending on TpClassic",
-                len(response),
+                "[TP] SP cmd: %s = %s (%d bytes)",
+                name, value.hex(), len(value),
+            )
+
+        # Forward to session for processing.
+        response_payload = self._on_twi_commands(commands)
+
+        if response_payload is not None:
+            self._twi_sequence += 1
+            # Count comma-separated responses
+            cmd_count = response_payload.count(b",") + 1
+            twi_header = self._build_twi_header(
+                self._twi_sequence,
+                cmd_count,
+                self._twi_controller_id,
+                self._twi_pod_id,
+            )
+            twi_response = twi_header + response_payload
+            logger.info(
+                "[TP] TWI response: seq=%d, count=%d, %d bytes",
+                self._twi_sequence, cmd_count, len(twi_response),
             )
             asyncio.get_event_loop().create_task(
-                self._send_app_response(response)
+                self._send_app_response(twi_response)
             )
+
+    def _on_twi_commands(
+        self, commands: list[tuple[str, bytes]]
+    ) -> bytes | None:
+        """
+        Dispatch parsed SP commands to the session's TWI handler.
+
+        Falls back to self._on_app_message if no TWI handler is set.
+        """
+        if self._on_twi_handler is not None:
+            return self._on_twi_handler(commands)
+        logger.warning("[TP] No TWI command handler — commands dropped")
+        return None
 
     async def _send_app_response(self, data: bytes) -> None:
         """

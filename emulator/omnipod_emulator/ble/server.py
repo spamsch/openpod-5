@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable
+from typing import Any
 
 from bumble.core import UUID as BumbleUUID
 from bumble.device import Device, Connection
@@ -68,6 +69,7 @@ class OmnipodBleServer:
         self,
         transport_name: str,
         on_app_message: CommandCallback,
+        on_twi_commands: Callable[[list[tuple[str, bytes]]], bytes | None] | None = None,
         *,
         force_legacy_advertising: bool = True,
         replay_real_pod_adv: bool = False,
@@ -95,6 +97,7 @@ class OmnipodBleServer:
         # Transport protocol layer
         self._transport = BleTransportProtocol(
             on_app_message=on_app_message,
+            on_twi_commands=on_twi_commands,
         )
 
         logger.info(

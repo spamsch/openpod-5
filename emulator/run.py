@@ -269,6 +269,7 @@ def _run_ble(
     ble_server = OmnipodBleServer(
         transport_name=transport,
         on_app_message=session.on_message,
+        on_twi_commands=session.on_twi_commands,
         force_legacy_advertising=force_legacy,
         replay_real_pod_adv=replay_real_pod,
         use_public_address=public_address,
@@ -304,6 +305,7 @@ def _run_both(
     ble_server = OmnipodBleServer(
         transport_name=transport,
         on_app_message=session.on_message,
+        on_twi_commands=session.on_twi_commands,
         force_legacy_advertising=force_legacy,
         replay_real_pod_adv=replay_real_pod,
         use_public_address=public_address,
