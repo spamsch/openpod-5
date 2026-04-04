@@ -117,6 +117,7 @@ class PairingStateMachine:
         controller_id: bytes,
         *,
         ecdh_seed: bytes | None = None,
+        algorithm: int = 0x00,
     ) -> None:
         if len(firmware_id) != 6:
             raise ValueError(
@@ -130,6 +131,7 @@ class PairingStateMachine:
         self._firmware_id = firmware_id
         self._controller_id = controller_id
         self._ecdh_seed = ecdh_seed
+        self._algorithm = algorithm
 
         self._state = PairingState.IDLE
         self._key_pair: EcdhKeyPair | None = None
@@ -179,7 +181,7 @@ class PairingStateMachine:
                 f"Cannot initialize from state {self._state.value}"
             )
 
-        key_pair = EcdhKeyPair(seed=self._ecdh_seed)
+        key_pair = EcdhKeyPair(seed=self._ecdh_seed, algorithm=self._algorithm)
         self._key_pair = key_pair
         self._state = PairingState.INITIALIZED
 
@@ -210,9 +212,14 @@ class PairingStateMachine:
                 f"Cannot set peer data from state {self._state.value}"
             )
 
-        if len(peer_public_key) != 32:
+        from omnipod_emulator.crypto.ecdh import is_p256
+
+        expected_len = 64 if is_p256(self._algorithm) else 32
+        if len(peer_public_key) != expected_len:
             raise ValueError(
-                f"Peer public key must be 32 bytes, got {len(peer_public_key)}"
+                f"Peer public key must be {expected_len} bytes "
+                f"(algorithm=0x{self._algorithm:02x}), "
+                f"got {len(peer_public_key)}"
             )
         if len(peer_nonce) != 16:
             raise ValueError(
@@ -223,7 +230,10 @@ class PairingStateMachine:
         self._peer_nonce = peer_nonce
         self._state = PairingState.PEER_DATA_SET
 
-        logger.info("Peer data stored: public_key=%d, nonce=%d bytes", 32, 16)
+        logger.info(
+            "Peer data stored: public_key=%d, nonce=%d bytes",
+            len(peer_public_key), len(peer_nonce),
+        )
 
     def derive_keys_and_compute_confirmation(self) -> bytes:
         """

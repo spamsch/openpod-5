@@ -92,8 +92,8 @@ def derive_keys(
     # ---- input validation ------------------------------------------------
     _validate("firmware_id", firmware_id, 6)
     _validate("controller_id", controller_id, 4)
-    _validate("pod_public_key", pod_public_key, 32)
-    _validate("phone_public_key", phone_public_key, 32)
+    _validate_key("pod_public_key", pod_public_key)
+    _validate_key("phone_public_key", phone_public_key)
     _validate("shared_secret", shared_secret, 32)
 
     # ---- build the hash input (pod is role=1: phone key first) ----------
@@ -191,8 +191,8 @@ def _derive_keys_raw(
     """
     _validate("firmware_id", firmware_id, 6)
     _validate("controller_id", controller_id, 4)
-    _validate("first_public_key", first_public_key, 32)
-    _validate("second_public_key", second_public_key, 32)
+    _validate_key("first_public_key", first_public_key)
+    _validate_key("second_public_key", second_public_key)
     _validate("shared_secret", shared_secret, 32)
 
     hasher = hashlib.sha256()
@@ -232,4 +232,15 @@ def _validate(name: str, data: bytes, expected_len: int) -> None:
     if len(data) != expected_len:
         raise ValueError(
             f"{name} must be {expected_len} bytes, got {len(data)}"
+        )
+
+
+def _validate_key(name: str, data: bytes) -> None:
+    """Raise ValueError if *data* is not a valid public key (32 or 64 bytes)."""
+    if not isinstance(data, (bytes, bytearray)):  # type: ignore[redundant-expr]
+        raise TypeError(f"{name} must be bytes, got {type(data).__name__}")
+    if len(data) not in (32, 64):
+        raise ValueError(
+            f"{name} must be 32 (X25519) or 64 (P-256) bytes, "
+            f"got {len(data)}"
         )

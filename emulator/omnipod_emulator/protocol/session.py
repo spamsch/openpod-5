@@ -251,20 +251,20 @@ class ProtocolSession:
             # Format: [MSG_PAIRING, 0x05] = already paired, proceed to auth
             return bytes([MSG_PAIRING, 0x05])
 
-        # Fresh pairing
+        # Fresh pairing — generate keys with default algorithm (Curve25519).
+        # If the BLE path later sends SPS0 with a different algorithm
+        # (e.g. P-256), _handle_sps0() will re-generate with the correct curve.
         self._pairing = PairingStateMachine(
             firmware_id=self._firmware_id,
             controller_id=self._controller_id,
             ecdh_seed=self._ecdh_seed,
         )
 
-        # Generate pod's key pair and nonce
         pod_pub_key, pod_nonce = self._pairing.initialize()
 
         self._phase = SessionPhase.PAIRING
 
         # Respond with firmware ID, pod's public key, and nonce
-        # Format: [MSG_PAIRING, firmware_id(6), pod_pub_key(32), pod_nonce(16)]
         response = bytes([MSG_PAIRING]) + self._firmware_id + pod_pub_key + pod_nonce
 
         logger.info(
@@ -697,6 +697,32 @@ class ProtocolSession:
             "SPS0: selector=%d, algorithm=0x%02x (%s)",
             selector, algorithm_byte, algo_name,
         )
+
+        # Re-generate keys with the negotiated algorithm.
+        # The init handler already generated Curve25519 keys (default),
+        # but SPS0 may request P-256 instead.
+        if self._pairing is not None:
+            from omnipod_emulator.crypto.ecdh import is_p256
+            from omnipod_emulator.protocol.pairing import PairingState
+
+            needs_regen = (
+                is_p256(algorithm_byte)
+                != is_p256(self._pairing._algorithm)
+            )
+            if needs_regen:
+                self._pairing._algorithm = algorithm_byte
+                self._pairing._state = PairingState.IDLE
+                self._pairing.initialize()
+                logger.info(
+                    "ECDH keys RE-generated with algorithm 0x%02x (%s)",
+                    algorithm_byte, algo_name,
+                )
+            else:
+                self._pairing._algorithm = algorithm_byte
+                logger.info(
+                    "Algorithm 0x%02x (%s) matches existing keys",
+                    algorithm_byte, algo_name,
+                )
 
         # Build SPS0 acceptance response:
         # "SPS0=" + \x00 + length + [selector(2), algorithm(1)] + CRC-16
