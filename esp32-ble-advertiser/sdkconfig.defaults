@@ -1,0 +1,23 @@
+# ESP32-S3 target
+CONFIG_IDF_TARGET="esp32s3"
+
+# NimBLE host stack (supports BLE 5.0 extended advertising)
+CONFIG_BT_ENABLED=y
+CONFIG_BT_NIMBLE_ENABLED=y
+CONFIG_BT_CONTROLLER_ENABLED=y
+
+# BLE 5.0 extended advertising support
+CONFIG_BT_NIMBLE_EXT_ADV=y
+
+# BLE only, no classic BT (ESP32-S3 doesn't have classic anyway)
+CONFIG_BT_CTRL_MODE_EFF=1
+
+# Console via CP2102 UART (Heltec V3 routes USB through external UART bridge)
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
+
+# Logging
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+CONFIG_LOG_MAXIMUM_LEVEL_DEBUG=y
+
+# Stack size
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
