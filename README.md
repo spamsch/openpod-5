@@ -42,6 +42,10 @@ feature/
   history/                    Delivery and glucose history
   alerts/                     Alarms, alerts, notifications
   settings/                   User preferences, CGM config, insulin settings
+utilities/
+  esp32-ble-advertiser/       ESP32-S3 firmware: Omnipod 5 BLE advertisement spoofer
+  esp32-ble-sniffer/          ESP32 firmware: BLE sniffer for directed advertisements
+  omnipod-scanner/            Android app: BLE scanner for Omnipod devices
 ```
 
 ## Tech Stack

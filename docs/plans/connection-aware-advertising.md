@@ -7,7 +7,7 @@ Relates to: `emulator-protocol-remediation.md` Section 8
 
 The real Omnipod 5 pod stops advertising while a PDM holds an active BLE
 connection.  It only resumes advertising after the connection is lost.  This is
-documented in `esp32-ble-sniffer/README.md` and `omnipod-scanner/README.md`.
+documented in `utilities/esp32-ble-sniffer/README.md` and `utilities/omnipod-scanner/README.md`.
 
 The emulator does the opposite: it calls `start_advertising(auto_restart=True)`
 once on startup and never stops.  Advertising continues even while a client is

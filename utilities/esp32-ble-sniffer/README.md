@@ -72,7 +72,7 @@ Omnipod-related packets are highlighted with `*** OMNIPOD ***` prefix.
 ### Build & Flash
 
 ```bash
-cd esp32-ble-sniffer
+cd utilities/esp32-ble-sniffer
 idf.py set-target esp32
 idf.py build
 idf.py -p /dev/cu.usbserial-0001 flash monitor

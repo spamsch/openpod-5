@@ -32,11 +32,11 @@ __pycache__/
 *.egg-info/
 
 # Scan logs (may contain private data)
-omnipod-scanner/scans/
+utilities/omnipod-scanner/scans/
 
 # ESP32 build artifacts
-esp32-ble-advertiser/.cache/
-esp32-ble-advertiser/sdkconfig.old
+utilities/esp32-ble-advertiser/.cache/
+utilities/esp32-ble-advertiser/sdkconfig.old
 
 # Misc
 captures/
