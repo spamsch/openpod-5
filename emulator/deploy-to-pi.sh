@@ -191,6 +191,9 @@ else
   ssh "$PI_HOST" "sudo cp ${PI_DIR}/openpod-emulator.service /etc/systemd/system/ && sudo systemctl daemon-reload"
 fi
 
+echo "Rotating journal logs for clean test run ..."
+ssh "$PI_HOST" "sudo journalctl --rotate && sudo journalctl --vacuum-time=1s -u openpod-emulator" 2>/dev/null || true
+
 echo "Restarting emulator service ..."
 ssh "$PI_HOST" "sudo systemctl restart openpod-emulator"
 
