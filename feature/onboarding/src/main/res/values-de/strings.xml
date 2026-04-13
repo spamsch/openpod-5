@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Welcome Screen -->
+    <string name="onboarding_welcome_app_name">OpenPod</string>
+    <string name="onboarding_welcome_tagline">Open-Source-Pod-Forschung</string>
+    <string name="onboarding_welcome_description">Ein unabh\u00e4ngiges Forschungs- und Interoperabilit\u00e4tsprojekt f\u00fcr Omnipod 5 Insulinpods. Diese Software ist nicht f\u00fcr den medizinischen Einsatz zugelassen.</string>
+    <string name="onboarding_welcome_research_warning">WARNUNG: Diese Software ist nicht von der FDA oder einer anderen Zulassungsbeh\u00f6rde genehmigt. Sie wird weder von Insulet Corporation noch von Dexcom unterst\u00fctzt oder ist mit diesen verbunden. Verwenden Sie diese Software nicht zur Insulinabgabe an eine Person. Nur f\u00fcr Forschung und Interoperabilit\u00e4tsstudien.</string>
+    <string name="onboarding_welcome_get_started">Los geht\'s</string>
+    <string name="onboarding_welcome_get_started_a11y">Los geht\'s. OpenPod einrichten.</string>
+
+    <!-- Permissions Screen -->
+    <string name="onboarding_permissions_title">Berechtigungen</string>
+    <string name="onboarding_permissions_subtitle">OpenPod ben\u00f6tigt einige Berechtigungen, um mit deinem Pod zu kommunizieren und dich sicher zu halten.</string>
+    <string name="onboarding_permissions_bluetooth_title">Bluetooth</string>
+    <string name="onboarding_permissions_bluetooth_description">Erforderlich, um deinen Omnipod 5 Pod zu finden und mit ihm zu kommunizieren. Ohne Bluetooth kann die App nicht funktionieren.</string>
+    <string name="onboarding_permissions_location_title">Standort</string>
+    <string name="onboarding_permissions_location_description">Android ben\u00f6tigt Standortzugriff, um nach Bluetooth-Ger\u00e4ten in der N\u00e4he zu suchen. OpenPod verfolgt oder speichert deinen Standort niemals.</string>
+    <string name="onboarding_permissions_notifications_title">Benachrichtigungen</string>
+    <string name="onboarding_permissions_notifications_description">Erhalte Warnungen f\u00fcr Pod-Alarme, niedrigen F\u00fcllstand, Ablaufwarnungen und Abgabe-Updates \u2014 auch wenn dein Bildschirm aus ist.</string>
+    <string name="onboarding_permissions_grant_bluetooth">Bluetooth erlauben</string>
+    <string name="onboarding_permissions_grant_bluetooth_a11y">Bluetooth-Berechtigung erteilen</string>
+    <string name="onboarding_permissions_grant_location">Standort erlauben</string>
+    <string name="onboarding_permissions_grant_location_a11y">Standort-Berechtigung erteilen</string>
+    <string name="onboarding_permissions_grant_notifications">Benachrichtigungen erlauben</string>
+    <string name="onboarding_permissions_grant_notifications_a11y">Benachrichtigungs-Berechtigung erteilen</string>
+    <string name="onboarding_permissions_granted">Erteilt</string>
+    <string name="onboarding_permissions_granted_a11y">%1$s Berechtigung. Erteilt.</string>
+    <string name="onboarding_permissions_continue">Weiter</string>
+    <string name="onboarding_permissions_continue_disabled_a11y">Weiter. Alle erforderlichen Berechtigungen m\u00fcssen zuerst erteilt werden.</string>
+    <string name="onboarding_permissions_denied_snackbar">Berechtigung verweigert. Tippe, um die Einstellungen zu \u00f6ffnen.</string>
+    <string name="onboarding_permissions_open_settings">Einstellungen \u00f6ffnen</string>
+    <string name="onboarding_permissions_notifications_auto_granted">Benachrichtigungen sind auf deiner Android-Version standardm\u00e4\u00dfig aktiviert</string>
+
+    <!-- Profile Screen: Common -->
+    <string name="onboarding_profile_title">Insulinprofil</string>
+    <string name="onboarding_profile_subtitle">Gib die Werte aus deinem Rezept ein. \u00dcberpr\u00fcfe sie mit deinem Arzt.</string>
+    <string name="onboarding_profile_back">Zur\u00fcck</string>
+    <string name="onboarding_profile_back_a11y">Zum vorherigen Schritt</string>
+    <string name="onboarding_profile_next">Weiter</string>
+    <string name="onboarding_profile_next_a11y">Zum n\u00e4chsten Schritt</string>
+    <string name="onboarding_profile_done">Fertig</string>
+    <string name="onboarding_profile_time_segments">Zeitsegmente</string>
+    <string name="onboarding_profile_add_segment">+ Zeitsegment hinzuf\u00fcgen</string>
+    <string name="onboarding_profile_add_segment_a11y">Weiteres Zeitsegment hinzuf\u00fcgen</string>
+    <string name="onboarding_profile_all_day">(ganzt\u00e4gig)</string>
+    <string name="onboarding_profile_time_range">%1$s \u2013 %2$s</string>
+
+    <!-- Profile Screen: DIA -->
+    <string name="onboarding_profile_dia_title">Insulinwirkdauer</string>
+    <string name="onboarding_profile_dia_description">Wie lange Insulin nach einem Bolus in deinem K\u00f6rper aktiv bleibt. Dies beeinflusst, wie der Bolusrechner bereits wirkendes Insulin (Insulin on Board) ber\u00fccksichtigt.</string>
+    <string name="onboarding_profile_dia_unit">Stunden</string>
+    <string name="onboarding_profile_dia_value">%1$s Stunden</string>
+    <string name="onboarding_profile_dia_min">2,0 Std.</string>
+    <string name="onboarding_profile_dia_max">5,0 Std.</string>
+    <string name="onboarding_profile_dia_presets_title">G\u00c4NGIGE INSULINTYPEN</string>
+    <string name="onboarding_profile_dia_presets_hint">Tippe auf einen Insulintyp, um die empfohlene Wirkdauer einzustellen. Passe nach Anweisung deines Arztes an.</string>
+    <string name="onboarding_profile_dia_slider_a11y">Insulinwirkdauer, aktuell %1$s Stunden. Einstellbar von 2,0 bis 5,0 Stunden.</string>
+    <string name="onboarding_profile_dia_error">Die Wirkdauer muss zwischen 2,0 und 5,0 Stunden liegen</string>
+
+    <!-- Profile Screen: IC Ratio -->
+    <string name="onboarding_profile_ic_title">Insulin-Kohlenhydrat-Verh\u00e4ltnis</string>
+    <string name="onboarding_profile_ic_description">Wie viele Gramm Kohlenhydrate eine Einheit Insulin abdeckt. Beispiel: 1:10 bedeutet, dass 1 Einheit 10g Kohlenhydrate abdeckt.</string>
+    <string name="onboarding_profile_ic_label">1 E :</string>
+    <string name="onboarding_profile_ic_suffix">g</string>
+    <string name="onboarding_profile_ic_range_hint">G\u00fcltiger Bereich: 1 \u2013 150 g/E</string>
+    <string name="onboarding_profile_ic_error">Gib f\u00fcr jedes Zeitsegment ein Verh\u00e4ltnis zwischen 1 und 150 ein</string>
+    <string name="onboarding_profile_ic_summary">1:%1$d g/E</string>
+
+    <!-- Profile Screen: Correction Factor -->
+    <string name="onboarding_profile_cf_title">Korrekturfaktor</string>
+    <string name="onboarding_profile_cf_description">Wie stark eine Einheit Insulin deinen Blutzucker senkt. Auch Insulinempfindlichkeitsfaktor (ISF) genannt.</string>
+    <string name="onboarding_profile_cf_label">1 E senkt BZ um</string>
+    <string name="onboarding_profile_cf_suffix">mg/dL</string>
+    <string name="onboarding_profile_cf_range_hint">G\u00fcltiger Bereich: 1 \u2013 400 mg/dL pro E</string>
+    <string name="onboarding_profile_cf_error">Gib f\u00fcr jedes Zeitsegment einen Korrekturfaktor zwischen 1 und 400 ein</string>
+    <string name="onboarding_profile_cf_summary">%1$d mg/dL pro E</string>
+
+    <!-- Profile Screen: Target Glucose -->
+    <string name="onboarding_profile_target_title">Ziel-Blutzucker</string>
+    <string name="onboarding_profile_target_description">Dein gew\u00fcnschter Blutzuckerbereich. Der Bolusrechner nutzt diesen, um Korrekturdosen zu berechnen.</string>
+    <string name="onboarding_profile_target_low">Niedrig</string>
+    <string name="onboarding_profile_target_high">Hoch</string>
+    <string name="onboarding_profile_target_unit">mg/dL</string>
+    <string name="onboarding_profile_target_low_hint">Niedriger Bereich: 70 \u2013 150 mg/dL</string>
+    <string name="onboarding_profile_target_high_hint">Hoher Bereich: 80 \u2013 200 mg/dL</string>
+    <string name="onboarding_profile_target_error_high_ge_low">Der hohe Zielwert muss mindestens dem niedrigen Zielwert entsprechen</string>
+    <string name="onboarding_profile_target_error_low_range">Niedriger Zielwert muss zwischen 70 und 150 mg/dL liegen</string>
+    <string name="onboarding_profile_target_error_high_range">Hoher Zielwert muss zwischen 80 und 200 mg/dL liegen</string>
+    <string name="onboarding_profile_target_summary">%1$d \u2013 %2$d mg/dL</string>
+
+    <!-- Profile Screen: Basal Program -->
+    <string name="onboarding_profile_basal_title">Basalprogramm</string>
+    <string name="onboarding_profile_basal_description">Deine Hintergrund-Insulinabgaberate. Diese l\u00e4uft kontinuierlich, um deinen Blutzucker zwischen den Mahlzeiten stabil zu halten.</string>
+    <string name="onboarding_profile_basal_info">Dieses Basalprogramm wird nur im manuellen Modus verwendet. Im automatischen Modus passt der Pod die Basalabgabe selbst an.</string>
+    <string name="onboarding_profile_basal_name_label">Programmname</string>
+    <string name="onboarding_profile_basal_default_name">Programm 1</string>
+    <string name="onboarding_profile_basal_rate_label">Rate:</string>
+    <string name="onboarding_profile_basal_rate_suffix">E/Std</string>
+    <string name="onboarding_profile_basal_range_hint">G\u00fcltiger Bereich: 0,05 \u2013 30,0 E/Std</string>
+    <string name="onboarding_profile_basal_total_daily">Gesamte Tagesdosis: %1$s E</string>
+    <string name="onboarding_profile_basal_error_rate">Gib f\u00fcr jedes Zeitsegment eine Rate zwischen 0,05 und 30,0 E/Std ein</string>
+    <string name="onboarding_profile_basal_error_name">Programmname darf nicht leer sein</string>
+
+    <!-- PIN Screen -->
+    <string name="onboarding_pin_title">Sicherheits-PIN festlegen</string>
+    <string name="onboarding_pin_subtitle">Diese PIN sch\u00fctzt vor versehentlicher Insulinabgabe. Du gibst sie vor jedem Bolus ein.</string>
+    <string name="onboarding_pin_enter_prompt">Gib deine PIN ein</string>
+    <string name="onboarding_pin_confirm_title">PIN best\u00e4tigen</string>
+    <string name="onboarding_pin_confirm_subtitle">Gib dieselbe PIN erneut ein, um sie zu best\u00e4tigen.</string>
+    <string name="onboarding_pin_confirm_prompt">Best\u00e4tige deine PIN</string>
+    <string name="onboarding_pin_mismatch">PINs stimmen nicht \u00fcberein. Versuche es erneut.</string>
+    <string name="onboarding_pin_start_over">Fangen wir von vorne an. Gib eine neue PIN ein.</string>
+    <string name="onboarding_pin_dots_a11y">PIN-Eingabe, %1$d von 4 Ziffern eingegeben</string>
+    <string name="onboarding_pin_digit_entered_a11y">Ziffer eingegeben</string>
+    <string name="onboarding_pin_digit_deleted_a11y">Ziffer gel\u00f6scht</string>
+    <string name="onboarding_pin_clear_a11y">Alle Ziffern l\u00f6schen</string>
+
+    <!-- PIN Screen: Biometric -->
+    <string name="onboarding_pin_biometric_title">Biometrische Entsperrung aktivieren?</string>
+    <string name="onboarding_pin_biometric_description">Verwende deinen Fingerabdruck oder dein Gesicht, um Boli zu best\u00e4tigen, anstatt jedes Mal deine PIN einzugeben. Deine PIN bleibt als Backup.</string>
+    <string name="onboarding_pin_biometric_enable">Biometrie aktivieren</string>
+    <string name="onboarding_pin_biometric_skip">Nicht jetzt</string>
+    <string name="onboarding_pin_biometric_failed">Biometrie-Einrichtung fehlgeschlagen. Du kannst dies sp\u00e4ter in den Einstellungen aktivieren.</string>
+
+    <!-- Ready Screen -->
+    <string name="onboarding_ready_title">Alles bereit</string>
+    <string name="onboarding_ready_subtitle">Pr\u00fcfe deine Einstellungen unten. Du kannst sie jederzeit in den Einstellungen \u00e4ndern.</string>
+    <string name="onboarding_ready_edit">Bearbeiten</string>
+    <string name="onboarding_ready_edit_a11y">%1$s bearbeiten</string>
+    <string name="onboarding_ready_pair_pod">Ersten Pod koppeln</string>
+    <string name="onboarding_ready_pair_pod_a11y">Ersten Pod koppeln. \u00d6ffnet den Pod-Kopplungsassistenten.</string>
+    <string name="onboarding_ready_dia_label">Insulinwirkdauer</string>
+    <string name="onboarding_ready_ic_label">Insulin-Kohlenhydrat-Verh\u00e4ltnis</string>
+    <string name="onboarding_ready_cf_label">Korrekturfaktor</string>
+    <string name="onboarding_ready_target_label">Ziel-Blutzucker</string>
+    <string name="onboarding_ready_basal_label">Basalprogramm</string>
+    <string name="onboarding_ready_pin_label">Sicherheits-PIN</string>
+    <string name="onboarding_ready_pin_enabled">Aktiviert</string>
+    <string name="onboarding_ready_biometrics_on">Biometrie: Ein</string>
+    <string name="onboarding_ready_biometrics_off">Biometrie: Aus</string>
+    <string name="onboarding_ready_total_daily">%1$s E Tagesdosis gesamt</string>
+    <string name="onboarding_ready_and_more">und %1$d weitere</string>
+    <string name="onboarding_ready_not_configured">Nicht konfiguriert</string>
+</resources>

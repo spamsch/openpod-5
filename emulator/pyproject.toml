@@ -1,0 +1,19 @@
+[project]
+name = "omnipod-emulator"
+version = "0.1.0"
+description = "Omnipod 5 pod emulator for BLE-based end-to-end testing"
+requires-python = ">=3.11"
+dependencies = [
+    "bumble>=0.0.200",
+    "cryptography>=42.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"

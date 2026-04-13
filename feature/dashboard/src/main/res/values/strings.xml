@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mode chip -->
+    <string name="dashboard_mode_automatic">Automatic Mode</string>
+    <string name="dashboard_mode_manual">Manual Mode</string>
+    <string name="dashboard_mode_chip_description">Operating mode: %1$s, button</string>
+
+    <!-- Activity Mode banner -->
+    <string name="dashboard_activity_mode_banner">Activity Mode</string>
+    <string name="dashboard_activity_mode_remaining">%1$s remaining</string>
+    <string name="dashboard_activity_mode_hours_remaining">%1$dh remaining</string>
+    <string name="dashboard_activity_mode_minutes_remaining">%1$dm remaining</string>
+    <string name="dashboard_activity_mode_accessibility">Activity Mode active, %1$s remaining</string>
+
+    <!-- Glucose area -->
+    <string name="dashboard_glucose_unit_mgdl">mg/dL</string>
+    <string name="dashboard_glucose_freshness_minutes">%1$d min ago</string>
+    <string name="dashboard_glucose_no_data_disconnected">No data \u2014 pod disconnected</string>
+    <string name="dashboard_glucose_no_cgm_data">No CGM data \u2014 last reading %1$d min ago</string>
+    <string name="dashboard_glucose_no_cgm_check_sensor">No CGM data \u2014 check sensor</string>
+    <string name="dashboard_glucose_waiting_first">Waiting for first reading</string>
+
+    <!-- No pod banner -->
+    <string name="dashboard_no_pod_title">No Pod Connected</string>
+    <string name="dashboard_no_pod_message">Pair a pod to start insulin delivery.</string>
+    <string name="dashboard_no_pod_pair_button">Pair Pod</string>
+
+    <!-- Disconnected banner -->
+    <string name="dashboard_disconnected_title">Disconnected</string>
+    <string name="dashboard_disconnected_time">%1$d min ago</string>
+    <string name="dashboard_disconnected_reconnecting">Reconnecting\u2026</string>
+    <string name="dashboard_disconnected_long_title">Connection lost \u2014 check pod proximity</string>
+
+    <!-- Last Bolus card -->
+    <string name="dashboard_last_bolus_label">Last Bolus</string>
+    <string name="dashboard_last_bolus_value">%1$s U</string>
+    <string name="dashboard_last_bolus_time">%1$s</string>
+    <string name="dashboard_last_bolus_primary">%1$s U  \u2022  %2$s</string>
+    <string name="dashboard_last_bolus_carbs">%1$dg carbs</string>
+    <string name="dashboard_last_bolus_type_meal">meal bolus</string>
+    <string name="dashboard_last_bolus_type_correction">correction bolus</string>
+    <string name="dashboard_last_bolus_type_meal_correction">meal + correction</string>
+    <string name="dashboard_last_bolus_type_manual">manual bolus</string>
+    <string name="dashboard_last_bolus_secondary_with_carbs">%1$dg carbs  \u2022  %2$s</string>
+    <string name="dashboard_last_bolus_secondary_no_carbs">%1$s</string>
+
+    <!-- Bolus in progress card -->
+    <string name="dashboard_bolus_delivering">Bolus Delivering\u2026</string>
+    <string name="dashboard_bolus_progress">%1$s / %2$s U</string>
+    <string name="dashboard_bolus_time_remaining">~%1$d sec remaining</string>
+    <string name="dashboard_bolus_cancel">Cancel Bolus</string>
+
+    <!-- Active Basal card -->
+    <string name="dashboard_active_basal_label">Active Basal</string>
+    <string name="dashboard_active_basal_rate">%1$s U/hr</string>
+    <string name="dashboard_active_basal_rate_with_name">%1$s U/hr  \u2022  \u201C%2$s\u201D</string>
+    <string name="dashboard_active_basal_automatic">Automatic Mode</string>
+    <string name="dashboard_active_basal_auto_description">Pod is auto-adjusting basal delivery</string>
+    <string name="dashboard_active_basal_activity_mode_note">(Activity Mode \u2014 no basal below 150)</string>
+
+    <!-- Bolus FAB -->
+    <string name="dashboard_bolus_fab">Bolus</string>
+    <string name="dashboard_bolus_fab_description">Bolus, button</string>
+
+    <!-- Pull to refresh -->
+    <string name="dashboard_refreshing">Refreshing\u2026</string>
+</resources>

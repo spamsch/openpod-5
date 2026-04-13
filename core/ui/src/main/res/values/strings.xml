@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- WizardStepper -->
+    <string name="wizard_step_completed">Step %1$d of %2$d, completed</string>
+    <string name="wizard_step_active">Step %1$d of %2$d, active</string>
+    <string name="wizard_step_pending">Step %1$d of %2$d, pending</string>
+
+    <!-- ActionCard -->
+    <string name="action_card_navigate">Navigate</string>
+
+    <!-- NumberPad -->
+    <string name="number_pad_digit">%1$s</string>
+    <string name="number_pad_decimal">Decimal point</string>
+    <string name="number_pad_backspace">Delete</string>
+    <string name="number_pad_backspace_long_press">Clear field</string>
+
+    <!-- PodStatusBar -->
+    <string name="pod_status_label">Pod</string>
+    <string name="pod_status_no_pod">No Pod</string>
+    <string name="pod_status_reservoir_units">%1$dU</string>
+    <string name="pod_status_time_remaining">%1$dh left</string>
+    <string name="pod_status_connected">Pod connected, %1$dU remaining, %2$dh left</string>
+    <string name="pod_status_reconnecting">Pod reconnecting, %1$dU remaining, %2$dh left</string>
+    <string name="pod_status_disconnected">Pod disconnected, %1$dU remaining, %2$dh left</string>
+    <string name="pod_status_no_pod_description">No pod paired</string>
+    <string name="pod_operating_mode_automatic">Automatic</string>
+    <string name="pod_operating_mode_manual">Manual</string>
+
+    <!-- GlucoseDisplay -->
+    <string name="glucose_no_value">--</string>
+    <string name="glucose_trend_rising_quickly">Rising quickly</string>
+    <string name="glucose_trend_rising">Rising</string>
+    <string name="glucose_trend_steady">Steady</string>
+    <string name="glucose_trend_falling">Falling</string>
+    <string name="glucose_trend_falling_quickly">Falling quickly</string>
+    <string name="glucose_trend_unknown">Unknown</string>
+    <string name="glucose_accessibility">Glucose %1$s %2$s, %3$s, %4$s</string>
+    <string name="glucose_accessibility_no_value">No glucose reading available</string>
+
+    <!-- IobChip -->
+    <string name="iob_no_value">-- U</string>
+    <string name="iob_value_active">%1$s U active</string>
+    <string name="iob_decay_indicator">decreasing</string>
+    <string name="iob_icon_description">Insulin on board</string>
+    <string name="iob_decay_icon_description">Insulin decreasing</string>
+
+    <!-- ProgressRing -->
+    <string name="progress_ring_accessibility">%1$s, %2$d percent</string>
+</resources>

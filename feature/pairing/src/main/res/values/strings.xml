@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Pairing wizard: general -->
+    <string name="pairing_title">Pair New Pod</string>
+    <string name="pairing_cancel">Cancel</string>
+    <string name="pairing_cancel_dialog_title">Abandon Pod Setup?</string>
+    <string name="pairing_cancel_dialog_message">Are you sure you want to cancel pod setup? You will return to the dashboard.</string>
+    <string name="pairing_cancel_dialog_message_after_prime">This pod has been primed and cannot be reused. Are you sure you want to cancel?</string>
+    <string name="pairing_cancel_dialog_confirm">Yes, Cancel</string>
+    <string name="pairing_cancel_dialog_dismiss">Continue Setup</string>
+    <string name="pairing_error_prefix">Error: %1$s</string>
+
+    <!-- Step 1: Fill Pod -->
+    <string name="pairing_fill_title">Fill Your Pod</string>
+    <string name="pairing_fill_instruction_1">Remove the pod from its packaging</string>
+    <string name="pairing_fill_instruction_2">Fill the syringe with insulin</string>
+    <string name="pairing_fill_instruction_3">Insert the syringe into the pod\'s fill port until it clicks</string>
+    <string name="pairing_fill_instruction_4">Push the plunger slowly until the pod beeps (minimum 85 units)</string>
+    <string name="pairing_fill_button">Pod Is Filled</string>
+    <string name="pairing_fill_illustration_description">Illustration of a pod being filled with a syringe</string>
+
+    <!-- Step 2: Discover Pod -->
+    <string name="pairing_discover_title">Searching for Pods\u2026</string>
+    <string name="pairing_discover_hint">Hold your phone close to the pod.</string>
+    <string name="pairing_discover_found_header">FOUND PODS</string>
+    <string name="pairing_discover_pod_id">ID: %1$s</string>
+    <string name="pairing_discover_signal_strong">Strong</string>
+    <string name="pairing_discover_signal_medium">Medium</string>
+    <string name="pairing_discover_signal_weak">Weak</string>
+    <string name="pairing_discover_troubleshoot_title">Can\'t find your pod?</string>
+    <string name="pairing_discover_troubleshoot_1">Make sure the pod is filled</string>
+    <string name="pairing_discover_troubleshoot_2">Move your phone closer</string>
+    <string name="pairing_discover_troubleshoot_3">Check that Bluetooth is enabled</string>
+    <string name="pairing_discover_scan_again">Scan Again</string>
+    <string name="pairing_discover_scanning_description">Searching for pods nearby</string>
+    <string name="pairing_discover_pod_description">%1$s, signal %2$s, ID %3$s</string>
+
+    <!-- Step 3: Connect & Authenticate -->
+    <string name="pairing_connect_title">Connecting to Pod\u2026</string>
+    <string name="pairing_connect_time_hint">This may take up to 30 seconds.</string>
+    <string name="pairing_connect_step_ble">BLE connected</string>
+    <string name="pairing_connect_step_services">Services discovered</string>
+    <string name="pairing_connect_step_auth">Authenticating</string>
+    <string name="pairing_connect_step_security">Security established</string>
+    <string name="pairing_connect_step_init">Pod initialized</string>
+    <string name="pairing_connect_substep_complete">%1$s, complete</string>
+    <string name="pairing_connect_substep_in_progress">%1$s, in progress</string>
+    <string name="pairing_connect_substep_pending">%1$s, pending</string>
+    <string name="pairing_connect_substep_failed">%1$s, failed</string>
+
+    <!-- Step 4: Prime -->
+    <string name="pairing_prime_title">Priming Pod\u2026</string>
+    <string name="pairing_prime_explanation">The pod is filling the cannula with insulin. You\'ll hear clicking sounds. This takes about 1 minute.</string>
+    <string name="pairing_prime_button">Priming Complete</string>
+    <string name="pairing_prime_progress_label">%1$d%%</string>
+    <string name="pairing_prime_progress_sublabel">Priming</string>
+
+    <!-- Step 5: Apply Pod -->
+    <string name="pairing_apply_title">Apply Pod to Your Body</string>
+    <string name="pairing_apply_instruction_1">Choose an infusion site (abdomen, upper arm, thigh, or lower back)</string>
+    <string name="pairing_apply_instruction_2">Clean the site with alcohol</string>
+    <string name="pairing_apply_instruction_3">Remove the adhesive backing</string>
+    <string name="pairing_apply_instruction_4">Press the pod firmly onto your skin</string>
+    <string name="pairing_apply_site_header">WHERE DID YOU PLACE IT?</string>
+    <string name="pairing_apply_button">Pod Is Applied</string>
+    <string name="pairing_apply_site_description">Infusion site: %1$s</string>
+    <string name="pairing_apply_site_selected_description">Infusion site: %1$s, selected</string>
+    <string name="pairing_apply_illustration_description">Illustration of body with pod placement zones</string>
+
+    <!-- Infusion sites -->
+    <string name="site_abdomen_left">Abdomen (L)</string>
+    <string name="site_abdomen_right">Abdomen (R)</string>
+    <string name="site_arm_left">Arm (L)</string>
+    <string name="site_arm_right">Arm (R)</string>
+    <string name="site_thigh_left">Thigh (L)</string>
+    <string name="site_thigh_right">Thigh (R)</string>
+    <string name="site_back_left">Back (L)</string>
+    <string name="site_back_right">Back (R)</string>
+
+    <!-- Step 6: Start Pod -->
+    <string name="pairing_start_title">Ready to Start Your Pod</string>
+    <string name="pairing_start_explanation">The pod will get ready to deliver insulin. You may feel a small click.</string>
+    <string name="pairing_start_reminder">Make sure the pod is pressed firmly against your body.</string>
+    <string name="pairing_start_button">Begin Delivery</string>
+    <string name="pairing_start_progress_title">Starting pod\u2026</string>
+
+    <!-- Step 7: Complete -->
+    <string name="pairing_complete_title">Pod Activated!</string>
+    <string name="pairing_complete_reservoir_label">Reservoir</string>
+    <string name="pairing_complete_reservoir_value">%1$.0f U</string>
+    <string name="pairing_complete_expires_label">Expires</string>
+    <string name="pairing_complete_firmware_label">Firmware</string>
+    <string name="pairing_complete_uid_label">Pod ID</string>
+    <string name="pairing_complete_message">Your pod is now delivering insulin.</string>
+    <string name="pairing_complete_button">Go to Dashboard</string>
+    <string name="pairing_complete_success_description">Pod successfully activated</string>
+</resources>

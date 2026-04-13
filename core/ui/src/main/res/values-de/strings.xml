@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- WizardStepper -->
+    <string name="wizard_step_completed">Schritt %1$d von %2$d, abgeschlossen</string>
+    <string name="wizard_step_active">Schritt %1$d von %2$d, aktiv</string>
+    <string name="wizard_step_pending">Schritt %1$d von %2$d, ausstehend</string>
+
+    <!-- ActionCard -->
+    <string name="action_card_navigate">Navigieren</string>
+
+    <!-- NumberPad -->
+    <string name="number_pad_digit">%1$s</string>
+    <string name="number_pad_decimal">Dezimalpunkt</string>
+    <string name="number_pad_backspace">L\u00f6schen</string>
+    <string name="number_pad_backspace_long_press">Feld leeren</string>
+
+    <!-- PodStatusBar -->
+    <string name="pod_status_label">Pod</string>
+    <string name="pod_status_no_pod">Kein Pod</string>
+    <string name="pod_status_reservoir_units">%1$dU</string>
+    <string name="pod_status_time_remaining">%1$dh verbleibend</string>
+    <string name="pod_status_connected">Pod verbunden, %1$dU verbleibend, %2$dh \u00fcbrig</string>
+    <string name="pod_status_reconnecting">Pod verbindet erneut, %1$dU verbleibend, %2$dh \u00fcbrig</string>
+    <string name="pod_status_disconnected">Pod getrennt, %1$dU verbleibend, %2$dh \u00fcbrig</string>
+    <string name="pod_status_no_pod_description">Kein Pod gekoppelt</string>
+    <string name="pod_operating_mode_automatic">Automatisch</string>
+    <string name="pod_operating_mode_manual">Manuell</string>
+
+    <!-- GlucoseDisplay -->
+    <string name="glucose_no_value">--</string>
+    <string name="glucose_trend_rising_quickly">Steigt schnell</string>
+    <string name="glucose_trend_rising">Steigt</string>
+    <string name="glucose_trend_steady">Stabil</string>
+    <string name="glucose_trend_falling">F\u00e4llt</string>
+    <string name="glucose_trend_falling_quickly">F\u00e4llt schnell</string>
+    <string name="glucose_trend_unknown">Unbekannt</string>
+    <string name="glucose_accessibility">Glukose %1$s %2$s, %3$s, %4$s</string>
+    <string name="glucose_accessibility_no_value">Kein Glukosewert verf\u00fcgbar</string>
+
+    <!-- IobChip -->
+    <string name="iob_no_value">-- U</string>
+    <string name="iob_value_active">%1$s U aktiv</string>
+    <string name="iob_decay_indicator">abnehmend</string>
+    <string name="iob_icon_description">Aktives Insulin</string>
+    <string name="iob_decay_icon_description">Insulin nimmt ab</string>
+
+    <!-- ProgressRing -->
+    <string name="progress_ring_accessibility">%1$s, %2$d Prozent</string>
+</resources>

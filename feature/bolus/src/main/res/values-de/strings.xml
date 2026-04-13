@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Top bar titles -->
+    <string name="bolus_title">Bolus</string>
+    <string name="bolus_review_title">Bolus prüfen</string>
+    <string name="bolus_complete_title">Bolus abgeschlossen</string>
+
+    <!-- Entry phase -->
+    <string name="bolus_carbs_label">Kohlenhydrate</string>
+    <string name="bolus_bg_label">Blutzucker</string>
+    <string name="bolus_bg_from_pod">%d (vom Pod)</string>
+    <string name="bolus_bg_enter">BZ eingeben</string>
+    <string name="bolus_bg_refresh_cd">BZ vom Pod aktualisieren</string>
+    <string name="bolus_iob_active">IOB: %s U aktiv</string>
+    <string name="bolus_calculator_title">Bolusrechner</string>
+    <string name="bolus_calc_meal_dose">Mahlzeitdosis</string>
+    <string name="bolus_calc_correction">Korrektur</string>
+    <string name="bolus_calc_iob_deduction">IOB-Abzug</string>
+    <string name="bolus_calc_suggested">Vorgeschlagen</string>
+    <string name="bolus_use_suggested">Vorgeschlagene Dosis verwenden</string>
+    <string name="bolus_dose_label">Dosis</string>
+    <string name="bolus_review_button">Bolus prüfen</string>
+
+    <!-- Review phase -->
+    <string name="bolus_summary_title">Bolus-Zusammenfassung</string>
+    <string name="bolus_pin_prompt">PIN eingeben um Abgabe zu bestätigen</string>
+    <string name="bolus_pin_incorrect">PIN falsch</string>
+    <string name="bolus_deliver_button">%s U abgeben</string>
+
+    <!-- Delivering phase -->
+    <string name="bolus_of_total">von %s U</string>
+    <string name="bolus_pulses_progress">%1$d von %2$d Impulsen</string>
+    <string name="bolus_elapsed">Vergangen: %1$d:%2$02d</string>
+    <string name="bolus_continue">Fortfahren</string>
+    <string name="bolus_yes_cancel">Ja, abbrechen</string>
+    <string name="bolus_cancel_bolus">Bolus abbrechen</string>
+
+    <!-- Complete phase -->
+    <string name="bolus_cancelled">Bolus abgebrochen</string>
+    <string name="bolus_completed">Bolus abgeschlossen</string>
+    <string name="bolus_delivered_amount">%s U abgegeben</string>
+    <string name="bolus_of_requested">von %s U angefordert</string>
+    <string name="bolus_done">Fertig</string>
+
+    <!-- Safety gate -->
+    <string name="bolus_blocked">Bolus blockiert: %s</string>
+
+    <!-- Shared labels -->
+    <string name="bolus_type_label">Typ</string>
+    <string name="bolus_carbs_summary">Kohlenhydrate</string>
+    <string name="bolus_bg_summary">BZ</string>
+    <string name="bolus_back_cd">Zurück</string>
+
+    <!-- Units -->
+    <string name="unit_grams_suffix">g</string>
+    <string name="unit_mgdl_suffix">mg/dL</string>
+    <string name="unit_insulin_suffix">U</string>
+</resources>

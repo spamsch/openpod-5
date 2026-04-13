@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Welcome Screen -->
+    <string name="onboarding_welcome_app_name">OpenPod</string>
+    <string name="onboarding_welcome_tagline">Open-source pod research</string>
+    <string name="onboarding_welcome_description">An independent research and interoperability project for Omnipod 5 insulin pods. This software is not approved for medical use.</string>
+    <string name="onboarding_welcome_research_warning">WARNING: This software is not approved by the FDA or any regulatory authority. It is not endorsed by or affiliated with Insulet Corporation or Dexcom. Do not use this software to deliver insulin to a person. Use for research and interoperability study only.</string>
+    <string name="onboarding_welcome_get_started">Get Started</string>
+    <string name="onboarding_welcome_get_started_a11y">Get Started. Begin setting up OpenPod.</string>
+
+    <!-- Permissions Screen -->
+    <string name="onboarding_permissions_title">Permissions</string>
+    <string name="onboarding_permissions_subtitle">OpenPod needs a few permissions to communicate with your pod and keep you safe.</string>
+    <string name="onboarding_permissions_bluetooth_title">Bluetooth</string>
+    <string name="onboarding_permissions_bluetooth_description">Required to discover and communicate with your Omnipod 5 pod. Without Bluetooth, the app cannot function.</string>
+    <string name="onboarding_permissions_location_title">Location</string>
+    <string name="onboarding_permissions_location_description">Android requires location access to scan for nearby Bluetooth devices. OpenPod never tracks or stores your location.</string>
+    <string name="onboarding_permissions_notifications_title">Notifications</string>
+    <string name="onboarding_permissions_notifications_description">Receive alerts for pod alarms, low reservoir, expiry warnings, and delivery updates \u2014 even when your screen is off.</string>
+    <string name="onboarding_permissions_grant_bluetooth">Grant Bluetooth</string>
+    <string name="onboarding_permissions_grant_bluetooth_a11y">Grant Bluetooth permission</string>
+    <string name="onboarding_permissions_grant_location">Grant Location</string>
+    <string name="onboarding_permissions_grant_location_a11y">Grant Location permission</string>
+    <string name="onboarding_permissions_grant_notifications">Grant Notifications</string>
+    <string name="onboarding_permissions_grant_notifications_a11y">Grant Notifications permission</string>
+    <string name="onboarding_permissions_granted">Granted</string>
+    <string name="onboarding_permissions_granted_a11y">%1$s permission. Granted.</string>
+    <string name="onboarding_permissions_continue">Continue</string>
+    <string name="onboarding_permissions_continue_disabled_a11y">Continue. All required permissions must be granted first.</string>
+    <string name="onboarding_permissions_denied_snackbar">Permission denied. Tap to open Settings.</string>
+    <string name="onboarding_permissions_open_settings">Open Settings</string>
+    <string name="onboarding_permissions_notifications_auto_granted">Notifications are enabled by default on your Android version</string>
+
+    <!-- Profile Screen: Common -->
+    <string name="onboarding_profile_title">Insulin Profile</string>
+    <string name="onboarding_profile_subtitle">Enter the values from your prescription. Verify with your healthcare provider.</string>
+    <string name="onboarding_profile_back">Back</string>
+    <string name="onboarding_profile_back_a11y">Go to previous step</string>
+    <string name="onboarding_profile_next">Next</string>
+    <string name="onboarding_profile_next_a11y">Go to next step</string>
+    <string name="onboarding_profile_done">Done</string>
+    <string name="onboarding_profile_time_segments">Time Segments</string>
+    <string name="onboarding_profile_add_segment">+ Add time segment</string>
+    <string name="onboarding_profile_add_segment_a11y">Add another time segment</string>
+    <string name="onboarding_profile_all_day">(all day)</string>
+    <string name="onboarding_profile_time_range">%1$s \u2013 %2$s</string>
+
+    <!-- Profile Screen: DIA -->
+    <string name="onboarding_profile_dia_title">Duration of Insulin Action</string>
+    <string name="onboarding_profile_dia_description">How long insulin stays active in your body after a bolus. This affects how the bolus calculator accounts for insulin already working (Insulin on Board).</string>
+    <string name="onboarding_profile_dia_unit">hours</string>
+    <string name="onboarding_profile_dia_value">%1$s hours</string>
+    <string name="onboarding_profile_dia_min">2.0 hr</string>
+    <string name="onboarding_profile_dia_max">5.0 hr</string>
+    <string name="onboarding_profile_dia_presets_title">COMMON INSULIN TYPES</string>
+    <string name="onboarding_profile_dia_presets_hint">Tap an insulin type to set the recommended DIA. Adjust as directed by your healthcare provider.</string>
+    <string name="onboarding_profile_dia_slider_a11y">Duration of Insulin Action, currently %1$s hours. Adjustable from 2.0 to 5.0 hours.</string>
+    <string name="onboarding_profile_dia_error">DIA must be between 2.0 and 5.0 hours</string>
+
+    <!-- Profile Screen: IC Ratio -->
+    <string name="onboarding_profile_ic_title">Insulin-to-Carb Ratio</string>
+    <string name="onboarding_profile_ic_description">How many grams of carbs one unit of insulin covers. For example, 1:10 means 1 unit covers 10g of carbs.</string>
+    <string name="onboarding_profile_ic_label">1 U :</string>
+    <string name="onboarding_profile_ic_suffix">g</string>
+    <string name="onboarding_profile_ic_range_hint">Valid range: 1 \u2013 150 g/U</string>
+    <string name="onboarding_profile_ic_error">Enter a ratio between 1 and 150 for each time segment</string>
+    <string name="onboarding_profile_ic_summary">1:%1$d g/U</string>
+
+    <!-- Profile Screen: Correction Factor -->
+    <string name="onboarding_profile_cf_title">Correction Factor</string>
+    <string name="onboarding_profile_cf_description">How much one unit of insulin lowers your blood glucose. Also called Insulin Sensitivity Factor (ISF).</string>
+    <string name="onboarding_profile_cf_label">1 U lowers BG by</string>
+    <string name="onboarding_profile_cf_suffix">mg/dL</string>
+    <string name="onboarding_profile_cf_range_hint">Valid range: 1 \u2013 400 mg/dL per U</string>
+    <string name="onboarding_profile_cf_error">Enter a correction factor between 1 and 400 for each time segment</string>
+    <string name="onboarding_profile_cf_summary">%1$d mg/dL per U</string>
+
+    <!-- Profile Screen: Target Glucose -->
+    <string name="onboarding_profile_target_title">Target Blood Glucose</string>
+    <string name="onboarding_profile_target_description">Your desired blood glucose range. The bolus calculator uses this to determine correction doses.</string>
+    <string name="onboarding_profile_target_low">Low</string>
+    <string name="onboarding_profile_target_high">High</string>
+    <string name="onboarding_profile_target_unit">mg/dL</string>
+    <string name="onboarding_profile_target_low_hint">Low range: 70 \u2013 150 mg/dL</string>
+    <string name="onboarding_profile_target_high_hint">High range: 80 \u2013 200 mg/dL</string>
+    <string name="onboarding_profile_target_error_high_ge_low">High target must be at least equal to low target</string>
+    <string name="onboarding_profile_target_error_low_range">Low target must be between 70 and 150 mg/dL</string>
+    <string name="onboarding_profile_target_error_high_range">High target must be between 80 and 200 mg/dL</string>
+    <string name="onboarding_profile_target_summary">%1$d \u2013 %2$d mg/dL</string>
+
+    <!-- Profile Screen: Basal Program -->
+    <string name="onboarding_profile_basal_title">Basal Program</string>
+    <string name="onboarding_profile_basal_description">Your background insulin delivery rate. This runs continuously to keep your glucose stable between meals.</string>
+    <string name="onboarding_profile_basal_info">This basal program is used in Manual Mode only. In Automatic Mode, the pod adjusts basal delivery on its own.</string>
+    <string name="onboarding_profile_basal_name_label">Program Name</string>
+    <string name="onboarding_profile_basal_default_name">Program 1</string>
+    <string name="onboarding_profile_basal_rate_label">Rate:</string>
+    <string name="onboarding_profile_basal_rate_suffix">U/hr</string>
+    <string name="onboarding_profile_basal_range_hint">Valid range: 0.05 \u2013 30.0 U/hr</string>
+    <string name="onboarding_profile_basal_total_daily">Total daily basal: %1$s U</string>
+    <string name="onboarding_profile_basal_error_rate">Enter a rate between 0.05 and 30.0 U/hr for each time segment</string>
+    <string name="onboarding_profile_basal_error_name">Program name must not be empty</string>
+
+    <!-- PIN Screen -->
+    <string name="onboarding_pin_title">Set a Safety PIN</string>
+    <string name="onboarding_pin_subtitle">This PIN protects against accidental insulin delivery. You\'ll enter it before every bolus.</string>
+    <string name="onboarding_pin_enter_prompt">Enter your PIN</string>
+    <string name="onboarding_pin_confirm_title">Confirm Your PIN</string>
+    <string name="onboarding_pin_confirm_subtitle">Enter the same PIN again to confirm.</string>
+    <string name="onboarding_pin_confirm_prompt">Confirm your PIN</string>
+    <string name="onboarding_pin_mismatch">PINs don\'t match. Try again.</string>
+    <string name="onboarding_pin_start_over">Let\'s start over. Enter a new PIN.</string>
+    <string name="onboarding_pin_dots_a11y">PIN entry, %1$d of 4 digits entered</string>
+    <string name="onboarding_pin_digit_entered_a11y">Digit entered</string>
+    <string name="onboarding_pin_digit_deleted_a11y">Digit deleted</string>
+    <string name="onboarding_pin_clear_a11y">Clear all digits</string>
+
+    <!-- PIN Screen: Biometric -->
+    <string name="onboarding_pin_biometric_title">Enable Biometric Unlock?</string>
+    <string name="onboarding_pin_biometric_description">Use your fingerprint or face to confirm boluses instead of entering your PIN each time. Your PIN remains as a backup.</string>
+    <string name="onboarding_pin_biometric_enable">Enable Biometrics</string>
+    <string name="onboarding_pin_biometric_skip">Not Now</string>
+    <string name="onboarding_pin_biometric_failed">Biometric setup failed. You can enable this later in Settings.</string>
+
+    <!-- Ready Screen -->
+    <string name="onboarding_ready_title">You\'re All Set</string>
+    <string name="onboarding_ready_subtitle">Review your settings below. You can change these anytime in Settings.</string>
+    <string name="onboarding_ready_edit">Edit</string>
+    <string name="onboarding_ready_edit_a11y">Edit %1$s</string>
+    <string name="onboarding_ready_pair_pod">Pair Your First Pod</string>
+    <string name="onboarding_ready_pair_pod_a11y">Pair Your First Pod. Opens the pod pairing wizard.</string>
+    <string name="onboarding_ready_dia_label">Duration of Insulin Action</string>
+    <string name="onboarding_ready_ic_label">Insulin-to-Carb Ratio</string>
+    <string name="onboarding_ready_cf_label">Correction Factor</string>
+    <string name="onboarding_ready_target_label">Target Blood Glucose</string>
+    <string name="onboarding_ready_basal_label">Basal Program</string>
+    <string name="onboarding_ready_pin_label">Safety PIN</string>
+    <string name="onboarding_ready_pin_enabled">Enabled</string>
+    <string name="onboarding_ready_biometrics_on">Biometrics: On</string>
+    <string name="onboarding_ready_biometrics_off">Biometrics: Off</string>
+    <string name="onboarding_ready_total_daily">%1$s U total daily</string>
+    <string name="onboarding_ready_and_more">and %1$d more</string>
+    <string name="onboarding_ready_not_configured">Not configured</string>
+</resources>

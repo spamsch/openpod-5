@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mode chip -->
+    <string name="dashboard_mode_automatic">Automatischer Modus</string>
+    <string name="dashboard_mode_manual">Manueller Modus</string>
+    <string name="dashboard_mode_chip_description">Betriebsmodus: %1$s, Schaltfl\u00E4che</string>
+
+    <!-- Activity Mode banner -->
+    <string name="dashboard_activity_mode_banner">Aktivit\u00E4tsmodus</string>
+    <string name="dashboard_activity_mode_remaining">%1$s verbleibend</string>
+    <string name="dashboard_activity_mode_hours_remaining">%1$dh verbleibend</string>
+    <string name="dashboard_activity_mode_minutes_remaining">%1$dm verbleibend</string>
+    <string name="dashboard_activity_mode_accessibility">Aktivit\u00E4tsmodus aktiv, %1$s verbleibend</string>
+
+    <!-- Glucose area -->
+    <string name="dashboard_glucose_unit_mgdl">mg/dL</string>
+    <string name="dashboard_glucose_freshness_minutes">vor %1$d Min.</string>
+    <string name="dashboard_glucose_no_data_disconnected">Keine Daten \u2014 Pod getrennt</string>
+    <string name="dashboard_glucose_no_cgm_data">Keine CGM-Daten \u2014 letzte Messung vor %1$d Min.</string>
+    <string name="dashboard_glucose_no_cgm_check_sensor">Keine CGM-Daten \u2014 Sensor pr\u00FCfen</string>
+    <string name="dashboard_glucose_waiting_first">Warte auf erste Messung</string>
+
+    <!-- No pod banner -->
+    <string name="dashboard_no_pod_title">Kein Pod verbunden</string>
+    <string name="dashboard_no_pod_message">Koppeln Sie einen Pod, um die Insulinabgabe zu starten.</string>
+    <string name="dashboard_no_pod_pair_button">Pod koppeln</string>
+
+    <!-- Disconnected banner -->
+    <string name="dashboard_disconnected_title">Getrennt</string>
+    <string name="dashboard_disconnected_time">vor %1$d Min.</string>
+    <string name="dashboard_disconnected_reconnecting">Verbindung wird hergestellt\u2026</string>
+    <string name="dashboard_disconnected_long_title">Verbindung verloren \u2014 Pod-N\u00E4he pr\u00FCfen</string>
+
+    <!-- Last Bolus card -->
+    <string name="dashboard_last_bolus_label">Letzter Bolus</string>
+    <string name="dashboard_last_bolus_value">%1$s IE</string>
+    <string name="dashboard_last_bolus_time">%1$s</string>
+    <string name="dashboard_last_bolus_primary">%1$s IE  \u2022  %2$s</string>
+    <string name="dashboard_last_bolus_carbs">%1$dg KH</string>
+    <string name="dashboard_last_bolus_type_meal">Mahlzeitenbolus</string>
+    <string name="dashboard_last_bolus_type_correction">Korrekturbolus</string>
+    <string name="dashboard_last_bolus_type_meal_correction">Mahlzeit + Korrektur</string>
+    <string name="dashboard_last_bolus_type_manual">Manueller Bolus</string>
+    <string name="dashboard_last_bolus_secondary_with_carbs">%1$dg KH  \u2022  %2$s</string>
+    <string name="dashboard_last_bolus_secondary_no_carbs">%1$s</string>
+
+    <!-- Bolus in progress card -->
+    <string name="dashboard_bolus_delivering">Bolus wird abgegeben\u2026</string>
+    <string name="dashboard_bolus_progress">%1$s / %2$s IE</string>
+    <string name="dashboard_bolus_time_remaining">~%1$d Sek. verbleibend</string>
+    <string name="dashboard_bolus_cancel">Bolus abbrechen</string>
+
+    <!-- Active Basal card -->
+    <string name="dashboard_active_basal_label">Aktive Basalrate</string>
+    <string name="dashboard_active_basal_rate">%1$s IE/h</string>
+    <string name="dashboard_active_basal_rate_with_name">%1$s IE/h  \u2022  \u201E%2$s\u201C</string>
+    <string name="dashboard_active_basal_automatic">Automatischer Modus</string>
+    <string name="dashboard_active_basal_auto_description">Pod passt Basalabgabe automatisch an</string>
+    <string name="dashboard_active_basal_activity_mode_note">(Aktivit\u00E4tsmodus \u2014 kein Basal unter 150)</string>
+
+    <!-- Bolus FAB -->
+    <string name="dashboard_bolus_fab">Bolus</string>
+    <string name="dashboard_bolus_fab_description">Bolus, Schaltfl\u00E4che</string>
+
+    <!-- Pull to refresh -->
+    <string name="dashboard_refreshing">Aktualisierung\u2026</string>
+</resources>
