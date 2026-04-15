@@ -52,6 +52,7 @@ from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Optional
 
+from omnipod_emulator import debug_ltk_store
 from omnipod_emulator.protocol.pairing import (
     PairingState,
     compute_controller_confirmation,
@@ -167,22 +168,57 @@ class _BridgeHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_POST(self) -> None:  # noqa: N802 — stdlib contract
-        if self.path != "/app_conf":
-            self._send_json(404, {"error": "not found"})
+        if self.path == "/app_conf":
+            self._handle_app_conf()
             return
+        if self.path == "/ltk_override":
+            self._handle_ltk_override()
+            return
+        self._send_json(404, {"error": "not found"})
 
+    def _read_json(self) -> dict | None:
         length = int(self.headers.get("Content-Length", "0") or "0")
         if length <= 0 or length > 32_768:
             self._send_json(400, {"error": "missing or oversized body"})
-            return
-
+            return None
         try:
             raw = self.rfile.read(length)
-            req = json.loads(raw)
+            return json.loads(raw)
         except (ValueError, OSError) as exc:
             self._send_json(400, {"error": f"bad json: {exc}"})
-            return
+            return None
 
+    def _handle_ltk_override(self) -> None:
+        req = self._read_json()
+        if req is None:
+            return
+        if not isinstance(req, dict):
+            self._send_json(400, {"error": "body must be a JSON object"})
+            return
+        missing = [k for k in ("session_id", "ltk") if k not in req]
+        if missing:
+            self._send_json(400, {"error": f"missing fields: {missing}"})
+            return
+        try:
+            session_id = bytes.fromhex(req["session_id"])
+            ltk = bytes.fromhex(req["ltk"])
+        except (TypeError, ValueError) as exc:
+            self._send_json(400, {"error": f"bad hex: {exc}"})
+            return
+        try:
+            debug_ltk_store.set_ltk(session_id, ltk)
+        except ValueError as exc:
+            self._send_json(400, {"error": str(exc)})
+            return
+        self._send_json(
+            200,
+            {"ok": True, "session_id": session_id.hex()},
+        )
+
+    def _handle_app_conf(self) -> None:
+        req = self._read_json()
+        if req is None:
+            return
         required = (
             "controller_id",
             "firmware_id",

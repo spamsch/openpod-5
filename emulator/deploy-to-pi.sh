@@ -158,6 +158,7 @@ rsync -avz --delete \
   --exclude '.pytest_cache' \
   --exclude '*.egg-info' \
   --exclude '.venv' \
+  --exclude 'state/' \
   "$LOCAL_DIR/" "${PI_HOST}:${PI_DIR}/"
 
 echo "Reinstalling package on Pi ..."

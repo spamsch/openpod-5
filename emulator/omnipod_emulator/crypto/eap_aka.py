@@ -42,6 +42,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 
+from omnipod_emulator import debug_ltk_store
 from omnipod_emulator.crypto.milenage import Milenage, validate_autn
 
 logger = logging.getLogger(__name__)
@@ -150,12 +151,29 @@ class EapAkaSlave:
     ltk: bytes
     sqn: bytes = field(default_factory=lambda: b"\x00" * 6)
     op: bytes | None = None
+    session_id: bytes | None = None
+    """
+    16-byte pairing session identifier (``sha256(pod_pub || controller_pub)[:16]``).
+
+    When set, ``_handle_challenge`` consults :mod:`debug_ltk_store` for
+    a matching LTK override pushed by the external dev-harness client
+    and uses it in place of ``self.ltk``. Leave as ``None`` for unit
+    tests and reconnect paths where there is no fresh pairing to key
+    against.
+    """
+
+    ltk_override_timeout_s: float = 1.0
+    """
+    Maximum time ``_handle_challenge`` will block waiting for a matching
+    LTK override to land in the store. 0 disables the wait entirely.
+    """
 
     state: EapAkaState = field(default=EapAkaState.IDLE, init=False)
     session_keys: SessionKeys = field(default_factory=SessionKeys, init=False)
     _milenage: Milenage = field(init=False, repr=False)
     _last_identifier: int = field(default=0, init=False)
     _last_challenge_response: bytes = field(default=b"", init=False, repr=False)
+    _ltk_override_applied: bool = field(default=False, init=False)
 
     def __post_init__(self) -> None:
         # ---- DEBUG LTK OVERRIDE (guardrailed) -----------------------------
@@ -289,6 +307,83 @@ class EapAkaSlave:
         # Build EAP-Response/AKA-Identity with no attributes
         return self._build_eap_response(identifier, AKA_IDENTITY, b"")
 
+    def _apply_dynamic_ltk_override(self) -> None:
+        """
+        Consult :mod:`debug_ltk_store` for an LTK pushed by the external
+        dev-harness client during pairing and, if one is present for the
+        current ``session_id``, replace ``self.ltk`` and rebuild MILENAGE.
+
+        Runs at most once per :class:`EapAkaSlave` instance — a single
+        pairing session should only produce a single LTK, and re-reading
+        on subsequent challenges would let a late unrelated push corrupt
+        an already-active session.
+
+        Uses :func:`debug_ltk_store.consume_ltk` so the store entry is
+        deleted on successful read; if an even later (cryptographically
+        improbable) session_id collision were to occur, the new slave
+        would not silently pick up the stale LTK.
+
+        TODO: this is a synchronous block on a ``threading.Condition``
+        called from the asyncio BLE handler. Acceptable for the dev
+        harness; revisit with ``asyncio.to_thread`` if the top-level
+        handler ever goes async.
+        """
+        if self._ltk_override_applied:
+            return
+        if self.session_id is None:
+            return
+        if self.ltk_override_timeout_s <= 0:
+            # Explicitly disabled — don't touch the store at all, and
+            # don't log a spurious "no override" warning.
+            self._ltk_override_applied = True
+            return
+
+        override = debug_ltk_store.consume_ltk(
+            self.session_id,
+            timeout=self.ltk_override_timeout_s,
+        )
+        self._ltk_override_applied = True
+
+        if override is None:
+            logger.warning(
+                "[ltk-store] no override for session_id=%s within %.2fs "
+                "— continuing with emulator-derived LTK (%s); "
+                "AUTN validation will likely fail if KDFs disagree",
+                self.session_id.hex(),
+                self.ltk_override_timeout_s,
+                self.ltk.hex(),
+            )
+            return
+
+        if override == self.ltk:
+            logger.info(
+                "[ltk-store] override for session_id=%s matches "
+                "emulator-derived LTK exactly — nothing to replace",
+                self.session_id.hex(),
+            )
+            return
+
+        logger.warning(
+            "╔══ DYNAMIC LTK OVERRIDE APPLIED ═══════════════════════╗"
+        )
+        logger.warning(
+            "║ session_id=%s", self.session_id.hex(),
+        )
+        logger.warning(
+            "║ emulator LTK: %s", self.ltk.hex(),
+        )
+        logger.warning(
+            "║ override LTK: %s", override.hex(),
+        )
+        logger.warning(
+            "║ Source: debug_ltk_store (pushed via /ltk_override)."
+        )
+        logger.warning(
+            "╚═══════════════════════════════════════════════════════╝"
+        )
+        self.ltk = override
+        self._milenage = Milenage(self.ltk, self.op)
+
     def _handle_challenge(
         self, identifier: int, attrs_data: bytes
     ) -> bytes:
@@ -299,6 +394,12 @@ class EapAkaSlave:
         and returns EAP-Response/AKA-Challenge with AT_RES.
         """
         logger.info("AKA-Challenge received, processing...")
+
+        # Dynamic LTK override barrier: if this pairing session has a
+        # matching LTK pushed from the external dev-harness client,
+        # swap it in before MILENAGE runs. No-op when session_id is
+        # unset (tests, reconnect).
+        self._apply_dynamic_ltk_override()
 
         attrs = _parse_attributes(attrs_data)
 

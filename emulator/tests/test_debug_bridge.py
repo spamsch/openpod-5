@@ -17,6 +17,7 @@ from typing import Optional
 
 import pytest
 
+from omnipod_emulator import debug_ltk_store
 from omnipod_emulator.crypto.ecdh import EcdhKeyPair
 from omnipod_emulator.debug_bridge import (
     DebugBridge,
@@ -329,3 +330,65 @@ class TestSessionSharedSecretProvider:
 
         provider = SessionSharedSecretProvider(session)
         assert provider(pod_pub, phone_pub) is None
+
+
+class TestLtkOverrideEndpoint:
+    """
+    ``POST /ltk_override`` stores a session-keyed LTK for the EAP-AKA
+    barrier. The provider isn't touched by this route, so we use a
+    trivial one that always returns None.
+    """
+
+    @staticmethod
+    def _null_provider(pod_pub: bytes, ctrl_pub: bytes) -> Optional[bytes]:
+        return None
+
+    def setup_method(self) -> None:
+        debug_ltk_store.clear()
+
+    def teardown_method(self) -> None:
+        debug_ltk_store.clear()
+
+    def test_happy_path_stores_value(self, bridge_factory) -> None:
+        bridge = bridge_factory(self._null_provider)
+        session_id = b"\xaa" * 16
+        ltk = b"\xbc" * 16
+        status, body = _post(
+            bridge,
+            "/ltk_override",
+            {"session_id": session_id.hex(), "ltk": ltk.hex()},
+        )
+        assert status == 200
+        assert body == {"ok": True, "session_id": session_id.hex()}
+        assert debug_ltk_store.wait_for_ltk(session_id, timeout=0.0) == ltk
+
+    def test_missing_fields(self, bridge_factory) -> None:
+        bridge = bridge_factory(self._null_provider)
+        status, body = _post(bridge, "/ltk_override", {"session_id": "aa" * 16})
+        assert status == 400
+        assert "missing fields" in body.get("error", "")
+
+    def test_bad_hex(self, bridge_factory) -> None:
+        bridge = bridge_factory(self._null_provider)
+        status, body = _post(
+            bridge,
+            "/ltk_override",
+            {"session_id": "zz" * 16, "ltk": "bb" * 16},
+        )
+        assert status == 400
+        assert "bad hex" in body.get("error", "")
+
+    def test_wrong_length(self, bridge_factory) -> None:
+        bridge = bridge_factory(self._null_provider)
+        status, body = _post(
+            bridge,
+            "/ltk_override",
+            {"session_id": "aa" * 15, "ltk": "bb" * 16},
+        )
+        assert status == 400
+        assert "session_id" in body.get("error", "")
+
+    def test_unknown_path_still_404(self, bridge_factory) -> None:
+        bridge = bridge_factory(self._null_provider)
+        status, _body = _post(bridge, "/nope", {})
+        assert status == 404

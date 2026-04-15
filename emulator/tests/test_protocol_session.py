@@ -17,6 +17,7 @@ import struct
 
 import pytest
 
+from omnipod_emulator import debug_ltk_store
 from omnipod_emulator.crypto import aes_ccm
 from omnipod_emulator.crypto.ecdh import EcdhKeyPair
 from omnipod_emulator.crypto.eap_aka import (
@@ -253,6 +254,150 @@ class TestConnectionInit:
     def test_empty_message_returns_none(self, session: ProtocolSession):
         response = session.on_message(b"")
         assert response is None
+
+
+class TestReconnectLtkStore:
+    """
+    Reconnect-whack-a-mole recovery path: when the phone is in
+    reconnect mode (cached SIM profile, jumps straight to EAP-AKA)
+    but pairing.json on the Pi has been wiped, the external
+    dev-harness client pushes the phone-side LTK into the
+    ``debug_ltk_store`` reconnect slot. The emulator normally takes
+    the fresh-pair branch on Init, then discovers the mismatch when
+    an AKA-Challenge arrives via on_twi_session_message with no
+    EapAkaSlave prepared — at which point it consults the reconnect
+    slot and upgrades the session in-place instead of erroring out.
+    """
+
+    def setup_method(self) -> None:
+        debug_ltk_store.clear()
+
+    def teardown_method(self) -> None:
+        debug_ltk_store.clear()
+
+    def _simulate_phone_init(self, session: ProtocolSession) -> None:
+        # Fresh Init drives the emulator into PAIRING + makes it emit
+        # SPS0 (pod pubkey + nonce). In a real reconnect the phone
+        # ignores SPS0, but the emulator still leaves itself primed
+        # with a PairingStateMachine and no EapAkaSlave.
+        response = session.on_message(phone_build_init())
+        assert response is not None
+        assert response[0] == MSG_PAIRING
+        assert session.phase == SessionPhase.PAIRING
+        assert session._eap_aka is None
+
+    def test_twi_session_recovery_uses_store_ltk(
+        self, session: ProtocolSession,
+    ):
+        cached_ltk = os.urandom(16)
+        rand = os.urandom(16)
+        sqn = b"\x00" * 6
+
+        # Phone-side EAP-AKA Challenge built with the cached LTK.
+        # phone_build_eap_aka_challenge wraps the EAP bytes with a
+        # leading MSG_EAP prefix for the BLE-raw path; on_twi_session
+        # expects the raw EAP bytes only, so strip it.
+        eap_challenge = phone_build_eap_aka_challenge(
+            cached_ltk, rand, sqn,
+        )[1:]
+
+        self._simulate_phone_init(session)
+
+        # Prime the reconnect slot BEFORE delivering the challenge.
+        debug_ltk_store.set_ltk(
+            debug_ltk_store.RECONNECT_SESSION_ID, cached_ltk,
+        )
+
+        response = session.on_twi_session_message(eap_challenge)
+
+        # Recovery path: EapAkaSlave is now live and fed the challenge.
+        assert session._eap_aka is not None
+        assert session._eap_aka.ltk == cached_ltk
+        assert session.phase == SessionPhase.ACTIVE
+        assert response is not None
+        # Response is a valid EAP-Response/AKA-Challenge with AT_RES.
+        assert response[0] == 0x02  # EAP-Response
+        assert response[4] == EAP_TYPE_AKA
+
+    def test_concurrent_recovery_does_not_rebuild_slave(
+        self, session: ProtocolSession,
+    ):
+        """
+        Double-check guard: if a second caller upgrades the session
+        during our barrier wait, the first caller must notice on return
+        and *not* rebuild a fresh EapAkaSlave on top of the live one.
+
+        Real dispatch is single-threaded today, but we pin the
+        invariant by monkeypatching ``wait_for_ltk`` so it performs
+        the "concurrent upgrade" side-effect *during* the wait.
+        """
+        cached_ltk = os.urandom(16)
+        self._simulate_phone_init(session)
+
+        debug_ltk_store.set_ltk(
+            debug_ltk_store.RECONNECT_SESSION_ID, cached_ltk,
+        )
+
+        # Install a sentinel EapAkaSlave we can fingerprint.
+        from omnipod_emulator.crypto.eap_aka import EapAkaSlave
+        sentinel_slave = EapAkaSlave(ltk=cached_ltk)
+
+        import omnipod_emulator.debug_ltk_store as ltk_store_mod
+        original_wait = ltk_store_mod.wait_for_ltk
+
+        def racing_wait(sid, timeout):
+            # Simulate another coroutine winning the upgrade race
+            # right in the middle of our wait.
+            session._eap_aka = sentinel_slave
+            session._phase = SessionPhase.AUTHENTICATING
+            return original_wait(sid, timeout)
+
+        ltk_store_mod.wait_for_ltk = racing_wait  # type: ignore[assignment]
+        try:
+            # We can't easily feed a real AKA-Challenge (the sentinel
+            # slave would reject it), so we just exercise the double-
+            # check branch via an empty payload in AUTHENTICATING —
+            # but the recovery path runs before the phase branch, so
+            # we still exercise the right guard. What we assert is
+            # that the sentinel slave is still in place after the call.
+            session.on_twi_session_message(b"")
+        finally:
+            ltk_store_mod.wait_for_ltk = original_wait  # type: ignore[assignment]
+
+        assert session._eap_aka is sentinel_slave, (
+            "second check should have preserved the slave built by the "
+            "concurrent caller"
+        )
+
+    def test_twi_session_recovery_miss_returns_none(
+        self, session: ProtocolSession,
+    ):
+        # No entry in the reconnect slot — the barrier times out and
+        # the handler leaves the session untouched (phase stays PAIRING,
+        # _eap_aka stays None, no response).
+        cached_ltk = b"\xaa" * 16
+        rand = os.urandom(16)
+        sqn = b"\x00" * 6
+        eap_challenge = phone_build_eap_aka_challenge(
+            cached_ltk, rand, sqn,
+        )[1:]
+
+        self._simulate_phone_init(session)
+
+        # Monkeypatch the barrier timeout to keep the test fast.
+        import omnipod_emulator.debug_ltk_store as ltk_store_mod
+        original = ltk_store_mod._store.wait_for_ltk
+        def fast_wait(sid, timeout):
+            return original(sid, timeout=0.05)
+        ltk_store_mod._store.wait_for_ltk = fast_wait  # type: ignore[assignment]
+        try:
+            response = session.on_twi_session_message(eap_challenge)
+        finally:
+            ltk_store_mod._store.wait_for_ltk = original  # type: ignore[assignment]
+
+        assert response is None
+        assert session._eap_aka is None
+        assert session.phase == SessionPhase.PAIRING
 
 
 class TestPairing:

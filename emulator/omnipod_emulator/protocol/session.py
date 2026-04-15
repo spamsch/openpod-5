@@ -29,9 +29,15 @@ import os
 import struct
 from collections.abc import Callable
 
+from omnipod_emulator import debug_ltk_store
 from omnipod_emulator.crypto import aes_ccm
 from omnipod_emulator.crypto.crc16 import crc16_ccitt
-from omnipod_emulator.crypto.eap_aka import EapAkaSlave, EapAkaState, SessionKeys
+from omnipod_emulator.crypto.eap_aka import (
+    EAP_SUCCESS,
+    EapAkaSlave,
+    EapAkaState,
+    SessionKeys,
+)
 from omnipod_emulator.persistence import (
     PairingStateRecord,
     load_pairing_state,
@@ -251,20 +257,19 @@ class ProtocolSession:
             self._controller_id.hex(),
         )
 
-        # Reconnection: if we already have an LTK, skip straight to auth
+        # Reconnection: if the emulator already holds a persisted LTK
+        # (loaded by _restore_persisted_state from pairing.json) we can
+        # spin up EAP-AKA directly. The "dynamic reconnect LTK from
+        # debug_ltk_store" case is handled later, inside
+        # on_twi_session_message when the phone's AKA-Challenge actually
+        # arrives — not here — because the dev-harness LTK push can lag
+        # the phone's Init frame by 1–3 seconds and blocking this
+        # handler on a barrier would stall the BLE event loop with the
+        # phone still waiting on our pairing response.
         if self._ltk is not None:
-            self._eap_aka = EapAkaSlave(ltk=self._ltk)
-            self._phase = SessionPhase.AUTHENTICATING
-
-            logger.info(
-                "Reconnection: LTK exists, skipping pairing, "
-                "phase -> AUTHENTICATING"
+            return self._begin_reconnect_with_ltk(
+                self._ltk, source="persisted state file",
             )
-
-            # Respond with a reconnection indicator so the phone knows
-            # to skip pairing and send EAP-AKA directly.
-            # Format: [MSG_PAIRING, 0x05] = already paired, proceed to auth
-            return bytes([MSG_PAIRING, 0x05])
 
         # Fresh pairing — generate keys with default algorithm (Curve25519).
         # If the BLE path later sends SPS0 with a different algorithm
@@ -392,8 +397,14 @@ class ProtocolSession:
         if self._on_paired is not None:
             self._on_paired()
 
-        # Initialize EAP-AKA with the derived LTK
-        self._eap_aka = EapAkaSlave(ltk=ltk)
+        # Initialize EAP-AKA with the derived LTK. session_id keys the
+        # dynamic LTK override store (see omnipod_emulator.debug_ltk_store)
+        # so the dev-harness client can push the phone-side LTK in
+        # before the first AKA-Challenge arrives.
+        self._eap_aka = EapAkaSlave(
+            ltk=ltk,
+            session_id=self._current_pairing_session_id(),
+        )
         self._phase = SessionPhase.AUTHENTICATING
 
         # Send pairing success indicator
@@ -610,6 +621,61 @@ class ProtocolSession:
         # Fallback: legacy format for tests without IV exchange.
         return struct.pack(">Q", counter) + suffix[:4] + b"\x00"
 
+    def _begin_reconnect_with_ltk(
+        self, ltk: bytes, *, source: str,
+    ) -> bytes:
+        """
+        Common reconnect body: install ``ltk`` on the session, spin up an
+        EapAkaSlave primed for the reconnect's EAP-AKA flow, move to
+        AUTHENTICATING, and return the ``MSG_PAIRING 0x05`` "already
+        paired, proceed to auth" indicator the phone expects.
+
+        ``source`` is free-form text used only in the log line so we
+        can tell persisted-state reconnects apart from debug-store
+        reconnects during live runs.
+        """
+        self._ltk = ltk
+        # session_id stays None on reconnect — the dynamic override
+        # barrier inside EapAkaSlave._handle_challenge is only relevant
+        # for fresh pairings where a dev-harness-pushed LTK might need
+        # to replace the emulator-derived one at challenge time.
+        # Reconnect LTKs are already authoritative by the time we get
+        # here.
+        self._eap_aka = EapAkaSlave(ltk=ltk)
+        self._phase = SessionPhase.AUTHENTICATING
+
+        logger.info(
+            "Reconnection: LTK available (%s), skipping pairing, "
+            "phase -> AUTHENTICATING",
+            source,
+        )
+        return bytes([MSG_PAIRING, 0x05])
+
+    def _current_pairing_session_id(self) -> bytes | None:
+        """
+        Derive the 16-byte session id for the current fresh-pair attempt.
+
+        Returns ``None`` when either ECDH public key is missing — for
+        example on reconnect paths that reuse a persisted LTK without a
+        fresh ECDH exchange. The EAP-AKA slave treats ``None`` as "no
+        dynamic override possible for this session", which is the right
+        behaviour for reconnects.
+        """
+        pairing = self._pairing
+        if pairing is None:
+            return None
+        key_pair = getattr(pairing, "_key_pair", None)
+        peer_pub = getattr(pairing, "_peer_public_key", b"")
+        if key_pair is None or not peer_pub:
+            return None
+        pod_pub = getattr(key_pair, "public_key_bytes", b"")
+        if not pod_pub:
+            return None
+        try:
+            return debug_ltk_store.compute_session_id(pod_pub, peer_pub)
+        except ValueError:
+            return None
+
     # ------------------------------------------------------------------
     # Persistent pairing state (LTK across restarts)
     # ------------------------------------------------------------------
@@ -777,12 +843,62 @@ class ProtocolSession:
         that), or ``None`` if no response should be sent.
         """
         if self._eap_aka is None:
-            logger.error(
-                "TWI session message in phase %s but EAP-AKA not initialised "
-                "— pairing must complete first",
-                self._phase.value,
+            # Recovery path: the phone is reconnecting with a cached
+            # LTK and has jumped straight to EAP-AKA, but the emulator
+            # has no persisted pairing.json and is still in PAIRING
+            # phase with a PairingStateMachine it will never complete.
+            # Before erroring out, consult the debug_ltk_store reconnect
+            # slot — the external dev-harness client pushes the phone's
+            # cached LTK there. The push has already had plenty of wall
+            # time by the time a TWI session frame arrives (the phone's
+            # reconnect TX typically lags Init by several seconds) so
+            # even a tight barrier is almost always a no-block hit.
+            #
+            # TODO: the barrier below blocks the asyncio BLE handler
+            # thread on a threading.Condition for up to 2 seconds.
+            # That's fine today because bumble dispatches callbacks
+            # single-threaded from the event loop and there's no other
+            # work to do until the phone sends its next frame; revisit
+            # with ``asyncio.to_thread`` if the top-level handler ever
+            # goes async.
+            recovered = debug_ltk_store.wait_for_ltk(
+                debug_ltk_store.RECONNECT_SESSION_ID,
+                timeout=2.0,
             )
-            return None
+
+            # Second check after the wait: if a concurrent caller (e.g.
+            # two rapid TWI session frames) raced this branch and
+            # already installed an EapAkaSlave via the same recovery
+            # path, don't rebuild — fall through to normal dispatch
+            # against the slave the other call created. This is cheap
+            # insurance; bumble's dispatch is single-threaded today,
+            # but the invariant is worth pinning down.
+            if self._eap_aka is not None:
+                logger.info(
+                    "[ltk-store] reconnect recovery: another caller "
+                    "already upgraded the session; falling through"
+                )
+            elif recovered is not None:
+                logger.warning(
+                    "[ltk-store] late reconnect LTK (%s) — upgrading "
+                    "session from %s to AUTHENTICATING via recovery path",
+                    recovered.hex(),
+                    self._phase.value,
+                )
+                self._begin_reconnect_with_ltk(
+                    recovered, source="debug_ltk_store reconnect slot (late)",
+                )
+                # Fall through to the normal AUTHENTICATING dispatch
+                # below so the current frame is processed as an
+                # AKA-Challenge immediately instead of bouncing.
+            else:
+                logger.error(
+                    "TWI session message in phase %s but EAP-AKA not "
+                    "initialised and no reconnect LTK in store "
+                    "— pairing must complete first",
+                    self._phase.value,
+                )
+                return None
 
         # Zero-length session payloads in ACTIVE phase are NOT transport
         # ACKs. Live tracing shows the phone's TWI parser has an
@@ -855,6 +971,37 @@ class ProtocolSession:
             return eap_response
 
         if self._phase == SessionPhase.ACTIVE:
+            # EAP-Success in ACTIVE phase. Once the pod has emitted its
+            # AKA-Response, the phone's TWI layer flips into
+            # encryption/decryption mode (`En/De mode`). It then emits a
+            # 4-byte ``[0x03, identifier, 0x00, 0x04]`` EAP-Success frame
+            # purely as a "protocol close" marker and does NOT expect a
+            # SessionEstablishmentMessage back — replaying the cached
+            # AKA-Response here triggers a phone-side
+            # ``Received in En/De mode while the message in invalid
+            # state: SessionEstablishmentMessage`` → disconnect with
+            # reason ``INVALID_MESSAGE_TYPE_IN_INVALID_MODE``.
+            #
+            # The right move is to silently swallow the EAP-Success.
+            # The phone's send-side watchdog is already cleared by the
+            # transport-level ACK of the AKA-Response, so dropping the
+            # frame does not re-arm anything on the phone side. If the
+            # phone still disconnects later, the cause is upstream (no
+            # post-auth sync trigger) and must be investigated at the
+            # higher layers — not papered over here.
+            if (
+                len(payload) == 4
+                and payload[0] == EAP_SUCCESS
+                and payload[2] == 0x00
+                and payload[3] == 0x04
+            ):
+                logger.info(
+                    "EAP-Success in ACTIVE (id=0x%02x) — silently dropping "
+                    "(session already in En/De mode on phone side)",
+                    payload[1],
+                )
+                return None
+
             # Post-EAP-AKA: encrypted RHP. _handle_encrypted_command expects
             # a leading MSG_ENCRYPTED byte in the legacy raw path; here we
             # synthesize that prefix so the existing handler can be reused.
@@ -1304,7 +1451,10 @@ class ProtocolSession:
         if self._on_paired is not None:
             self._on_paired()
 
-        self._eap_aka = EapAkaSlave(ltk=ltk)
+        self._eap_aka = EapAkaSlave(
+            ltk=ltk,
+            session_id=self._current_pairing_session_id(),
+        )
         self._phase = SessionPhase.AUTHENTICATING
 
         # Persist LTK + identity so reconnects after restart work.
@@ -1372,7 +1522,10 @@ class ProtocolSession:
         if self._on_paired is not None:
             self._on_paired()
 
-        self._eap_aka = EapAkaSlave(ltk=ltk)
+        self._eap_aka = EapAkaSlave(
+            ltk=ltk,
+            session_id=self._current_pairing_session_id(),
+        )
         self._phase = SessionPhase.AUTHENTICATING
 
         response = encode_sp("SPS4=", pod_conf)

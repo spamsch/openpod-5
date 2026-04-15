@@ -204,3 +204,157 @@ class TestAtResEncoding:
         assert response[5] == AKA_CHALLENGE
         assert response[8] == AT_RES
         assert response[9] == 0x03
+
+
+class TestDynamicLtkOverride:
+    """
+    The dynamic LTK barrier in ``_handle_challenge`` should swap a
+    pushed override into place before MILENAGE runs, so a slave that
+    was constructed with the wrong LTK can still authenticate.
+    """
+
+    def setup_method(self) -> None:
+        from omnipod_emulator import debug_ltk_store
+
+        debug_ltk_store.clear()
+
+    def teardown_method(self) -> None:
+        from omnipod_emulator import debug_ltk_store
+
+        debug_ltk_store.clear()
+
+    def test_override_swaps_ltk_before_validation(self) -> None:
+        from omnipod_emulator import debug_ltk_store
+
+        wrong_ltk = b"\x00" * 16
+        correct_ltk = os.urandom(16)
+        session_id = b"\xA1" * 16
+
+        slave = EapAkaSlave(
+            ltk=wrong_ltk,
+            session_id=session_id,
+            ltk_override_timeout_s=0.5,
+        )
+
+        debug_ltk_store.set_ltk(session_id, correct_ltk)
+
+        rand = os.urandom(16)
+        sqn = b"\x00" * 6
+        challenge = _build_challenge(correct_ltk, rand, sqn, include_mac=False)
+
+        response = slave.process_message(challenge)
+
+        assert response is not None
+        assert slave.state == EapAkaState.AUTHENTICATED
+        assert slave.ltk == correct_ltk
+
+    def test_missing_override_times_out_and_fails(self) -> None:
+        correct_ltk = os.urandom(16)
+        wrong_ltk = b"\xff" * 16
+        session_id = b"\xB2" * 16
+
+        slave = EapAkaSlave(
+            ltk=wrong_ltk,
+            session_id=session_id,
+            ltk_override_timeout_s=0.05,
+        )
+
+        rand = os.urandom(16)
+        sqn = b"\x00" * 6
+        challenge = _build_challenge(correct_ltk, rand, sqn, include_mac=False)
+
+        response = slave.process_message(challenge)
+
+        # The slave does not block forever — it times out and attempts
+        # validation with its own (wrong) LTK, which MILENAGE rejects.
+        assert response is not None
+        assert slave.state == EapAkaState.FAILED
+        assert slave.ltk == wrong_ltk
+
+    def test_override_is_consumed_only_once(self) -> None:
+        from omnipod_emulator import debug_ltk_store
+
+        wrong_ltk = b"\x00" * 16
+        correct_ltk = os.urandom(16)
+        session_id = b"\xC3" * 16
+
+        slave = EapAkaSlave(
+            ltk=wrong_ltk,
+            session_id=session_id,
+            ltk_override_timeout_s=0.5,
+        )
+        debug_ltk_store.set_ltk(session_id, correct_ltk)
+
+        rand = os.urandom(16)
+        sqn = b"\x00" * 6
+        challenge = _build_challenge(correct_ltk, rand, sqn, include_mac=False)
+        slave.process_message(challenge)
+        assert slave.state == EapAkaState.AUTHENTICATED
+
+        # A later "poisoned" override must NOT clobber the live session.
+        debug_ltk_store.set_ltk(session_id, b"\xee" * 16)
+        # Feeding a second challenge with the same (still correct) LTK
+        # should not re-enter the barrier — the slave's ltk stays as it
+        # was after the first apply.
+        challenge2 = _build_challenge(correct_ltk, os.urandom(16), sqn, include_mac=False)
+        slave.process_message(challenge2)
+        assert slave.ltk == correct_ltk
+
+    def test_no_session_id_skips_barrier(self) -> None:
+        # Reconnect and test-only paths pass session_id=None. The
+        # slave must not touch the store in that case.
+        ltk = os.urandom(16)
+        slave = EapAkaSlave(ltk=ltk, session_id=None)
+
+        rand = os.urandom(16)
+        sqn = b"\x00" * 6
+        challenge = _build_challenge(ltk, rand, sqn, include_mac=False)
+        response = slave.process_message(challenge)
+
+        assert response is not None
+        assert slave.state == EapAkaState.AUTHENTICATED
+
+    def test_override_arriving_after_first_timeout_is_ignored(self) -> None:
+        """
+        One-shot latch: if the barrier times out on the first
+        challenge, a later push + a later second challenge must NOT
+        cause the slave to swap in the (now available) override.
+        Rebuilding MILENAGE mid-session against a fresh LTK would
+        break session keys already derived from the (wrong) one.
+        """
+        from omnipod_emulator import debug_ltk_store
+
+        wrong_ltk = b"\x00" * 16
+        real_ltk = os.urandom(16)
+        session_id = b"\xD4" * 16
+
+        slave = EapAkaSlave(
+            ltk=wrong_ltk,
+            session_id=session_id,
+            ltk_override_timeout_s=0.05,  # barrier will time out fast
+        )
+
+        # First challenge: barrier misses, slave fails AUTN against
+        # the wrong LTK, latch flips.
+        rand_a = os.urandom(16)
+        sqn = b"\x00" * 6
+        challenge_a = _build_challenge(real_ltk, rand_a, sqn, include_mac=False)
+        slave.process_message(challenge_a)
+        assert slave.state == EapAkaState.FAILED
+        assert slave._ltk_override_applied is True
+
+        # Now a late push arrives — exactly the scenario the latch
+        # defends against. The slave must not pick it up.
+        debug_ltk_store.set_ltk(session_id, real_ltk)
+
+        # Reset the slave's state to simulate a retry loop and feed
+        # another challenge. The latch is still set, so the barrier
+        # does NOT re-read the store and the slave keeps its broken
+        # LTK.
+        slave.state = EapAkaState.IDLE  # direct reset; real code never does this
+        rand_b = os.urandom(16)
+        challenge_b = _build_challenge(real_ltk, rand_b, sqn, include_mac=False)
+        slave.process_message(challenge_b)
+
+        assert slave.ltk == wrong_ltk, "latch should have blocked a second read"
+        assert slave.state == EapAkaState.FAILED
