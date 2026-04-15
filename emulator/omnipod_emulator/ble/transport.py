@@ -402,24 +402,64 @@ class BleTransportProtocol:
         Parse the 16-byte TWI header.  Returns ``(meta, rhp_payload)``
         or ``None`` if the data is not TWI-framed.
 
-        Header layout (16 bytes):
-            0-1:   "TW" magic
-            2-3:   version (0x10 0x03)
-            4:     sequence id
-            5-6:   command count (BE16)
-            7:     flags (0x80 = unencrypted)
-            8-11:  controller id (BE32)
-            12-15: pod id (BE32)
+        Header layout (16 bytes, cross-referenced against live wire
+        captures on the v3.1.1 phone pairing path):
+
+            Offset  Size  Field / encoding
+             0-1    2     "TW" magic (0x54 0x57)
+             2      1     high nibble = const 0x1 (version);
+                          low nibble  = eqos (0-3 observed)
+                          bit 3 also toggled by a private bool flag
+             3      1     high nibble = flag bits:
+                            bit 7 (0x80) = isAck
+                            bit 6 (0x40) = reserved / flag a
+                            bit 5 (0x20) = reserved / flag d
+                            bit 4 (0x10) = reserved / flag c
+                          low nibble  = msg_type wire value:
+                            0x0 ClearMessage
+                            0x1 EncryptedMessage
+                            0x2 SessionEstablishmentMessage
+                            0x3 PairingMessage
+                            0x4 EncryptedSignedMessage
+                            0x5 EncryptedSignedWithUserConfirmationMessage
+             4      1     sequence (low byte of the 16-bit seq field)
+             5      1     ack_num (low byte of the 16-bit ack field)
+             6-7    2     encoded = (plaintext_length << 5) | reserved5
+                          (reserved5 is always 0 in observed traffic)
+             8-11   4     src_twi_sn  (phone=00000000, pod=00000003)
+            12-15   4     dst_twi_sn
+
+        The legacy ``version`` field (2-byte slice) is preserved in the
+        meta dict so older callers keep working.
         """
         if len(data) < TWI_HEADER_SIZE or data[0:2] != TWI_MAGIC:
             return None
+        version_byte = data[2]
+        msg_type_byte = data[3]
+        encoded_len_flags = (data[6] << 8) | data[7]
         meta = {
+            # Legacy fields (preserved for older callers).
             "version": bytes(data[2:4]),
             "sequence": data[4],
+            # Historical alias; prefer encoded_len / encoded_reserved.
             "cmd_count": struct.unpack(">H", data[5:7])[0],
             "flags": data[7],
             "controller_id": data[8:12],
             "pod_id": data[12:16],
+            # New fields (from the v3.1.1 wire-capture decode).
+            "version_byte": version_byte,
+            "version_high": (version_byte & 0xF0) >> 4,
+            "eqos": version_byte & 0x0F,
+            "msg_type_byte": msg_type_byte,
+            "msg_type": msg_type_byte & 0x0F,
+            "flag_bits": (msg_type_byte & 0xF0) >> 4,
+            "is_ack": bool(msg_type_byte & 0x80),
+            "ack_num": data[5],
+            "encoded_len": encoded_len_flags >> 5,
+            "encoded_reserved": encoded_len_flags & 0x1F,
+            "src_twi_sn": data[8:12],
+            "dst_twi_sn": data[12:16],
+            "raw_header": bytes(data[:TWI_HEADER_SIZE]),
         }
         return meta, data[TWI_HEADER_SIZE:]
 
@@ -431,42 +471,144 @@ class BleTransportProtocol:
         pod_id: bytes,
         flags: int = 0x80,
         version: bytes = b"\x10\x03",
+        is_ack: bool = False,
+        ack_num: int = 0,
     ) -> bytes:
         """
         Build a 16-byte TWI response header.
 
-        Layout:
+        Layout (see ``_strip_twi_header`` for the full decode):
           0-1:   "TW" magic
-          2-3:   version "10 03"
+          2-3:   ``version`` — byte 2 = high nibble version / low nibble
+                 eqos; byte 3 = high nibble flag bits / low nibble msg_type
           4:     sequence number
-          5:     reserved (always 0 in observed traces)
+          5:     ack_num (0 for non-ACK frames)
           6-7:   16-bit BE = (payload_length << 5) | (flags & 0x1F)
-                 i.e. upper 11 bits = payload length, lower 5 bits = flags.
-                 Decode: length = ((byte6 << 8) | byte7) >> 5
+                 i.e. upper 11 bits = payload length, lower 5 bits =
+                 legacy "reserved flags" field (always 0 on the wire).
           8-11:  controller_id (4 bytes)
           12-15: pod_id (4 bytes)
 
-        Note: earlier versions of this builder reserved the upper 3 bits of
-        byte 7 for a "flag classifier" (0x80/0xa0/0xc0/0xe0) and mirrored
-        them from the request. That was a misreading: those bits are part
-        of the length encoding (length & 0x07) << 5. Real frames with
-        len ≡ 7 mod 8 (e.g. SPS1 len=87, SPS2 len=143, SP0,GP0 len=7)
-        coincidentally land on 0xE0 and made the bug invisible, but
-        len=6 (P0=) produced a one-byte length error and the app dropped
-        the frame — see post-P0-trace investigation 2026-04-13.
+        ``is_ack``: when True, OR the 0x80 bit into byte 3 (the isAck
+        flag). Callers that build an ACK frame should also set
+        ``payload_length = 0`` and pass the inbound frame's sequence
+        as ``ack_num``.
+
+        Note on byte 7 / flags: earlier versions of this builder
+        reserved the upper 3 bits of byte 7 for a "flag classifier"
+        (0x80/0xa0/0xc0/0xe0) and mirrored them from the request. That
+        was a misreading: those bits are part of the length encoding
+        ``(length & 0x07) << 5``. Real frames with ``len ≡ 7 mod 8``
+        (SPS1 len=87, SPS2 len=143, SP0,GP0 len=7) coincidentally land
+        on 0xE0 and made the bug invisible, but len=6 (P0=) produced a
+        one-byte length error and the app dropped the frame — see
+        post-P0-trace investigation 2026-04-13. The 5-bit flag field at
+        bytes 6-7 low 5 bits is always 0 in observed outbound traffic,
+        so ``flags`` is effectively a no-op parameter retained only for
+        legacy callers.
         """
         encoded = ((payload_length & 0x07FF) << 5) | (flags & 0x1F)
         if len(version) != 2:
             raise ValueError(f"version must be 2 bytes, got {len(version)}")
+        byte2 = version[0]
+        byte3 = version[1]
+        if is_ack:
+            byte3 |= 0x80
         return (
             TWI_MAGIC
-            + version
+            + bytes([byte2, byte3])
             + bytes([sequence & 0xFF])
-            + b"\x00"  # byte 5 reserved
+            + bytes([ack_num & 0xFF])
             + bytes([(encoded >> 8) & 0xFF, encoded & 0xFF])
             + controller_id[:4]
             + pod_id[:4]
         )
+
+    def _build_twi_ack(self, meta: dict) -> bytes:
+        """
+        Build a pod-side ACK frame for an inbound TWI frame.
+
+        This is an exploratory / historical implementation. The
+        hand-rolled frames produced here were observed to be silently
+        dropped by the v3.1.1 phone parser, so live runs rely on a
+        different mechanism to clear the reliable-transport retry
+        budget. The code is kept because the header encoding is
+        still correct and the frame is useful in unit tests and for
+        future protocol iterations.
+
+        Encoding derived from ``_strip_twi_header``:
+
+        - byte 2 = ``inbound.version_byte & 0xF0`` — keep the version
+          high nibble (security-association state bit) but clear the
+          eqos low nibble. ACKs themselves are not reliable transport
+          (they should not need their own ACKs), so eqos = 0. The
+          phone's own ACK builder allocates a fresh frame and sets
+          only the isAck flag, the swapped src/dst arrays, the new
+          sequence, the computed ack_num, and the mirrored msg_type;
+          it does NOT copy the eqos field from the inbound frame.
+        - byte 3 = ``0x80 | 0x04`` — isAck bit set, all other flag
+          bits cleared, msg_type forced to ``EncryptedSignedMessage``
+          (wire value 4) instead of mirroring the inbound
+          ``EncryptedMessage`` (wire value 1). The phone's receive
+          path special-cases ``EncryptedMessage`` with a mandatory
+          AES-CCM decrypt on every inbound frame; an empty-payload
+          ACK fails that decrypt and gets silently dropped before
+          reaching the ACK acceptance path. Switching the msg_type
+          routes the frame to the no-decrypt branch instead.
+        - byte 4 = pod's outbound sequence counter (fresh).
+        - byte 5 = inbound frame's sequence + 1. The phone's own
+          ACK validator requires ``ack_num == my_seq + 1`` and
+          rejects any frame that does not match.
+        - bytes 6-7 = 0 (no payload).
+        - bytes 8-11 = inbound dst_twi_sn (pod-side src in the reply).
+        - bytes 12-15 = inbound src_twi_sn (controller-side dst).
+        - a 4-byte zero pad is appended to cross a 19-byte minimum-
+          size threshold that the phone's inbound parser enforces on
+          some branches.
+
+        Returns a 20-byte ACK frame.
+        """
+        self._twi_sequence += 1
+        # Keep the version high nibble (security/version flags) but
+        # clear the eqos low nibble - ACKs are not themselves reliable.
+        byte2 = meta["version_byte"] & 0xF0
+        # Force msg_type = EncryptedSignedMessage (wire 4) instead of
+        # mirroring the inbound EncryptedMessage (wire 1).  The phone's
+        # receive path special-cases EncryptedMessage with a mandatory
+        # AES-CCM decrypt that fails on empty-payload ACK frames.
+        # EncryptedSignedMessage (still in the post-encryption
+        # allowlist) routes through the no-decrypt branch.
+        byte3 = 0x80 | 0x04
+        ack_num = (meta["sequence"] + 1) & 0xFF
+        src = bytes(meta["dst_twi_sn"])[:4]
+        dst = bytes(meta["src_twi_sn"])[:4]
+        # The phone's inbound parser has a branched minimum-size
+        # check (16 or 19 bytes depending on a per-call state
+        # counter). Empty-payload ACK frames sit at exactly 16 bytes
+        # and are silently dropped on the 19-byte branch. Append a
+        # 4-byte zero pad so the frame is 20 bytes total and both
+        # branches accept it. The encoded length field at bytes 6-7
+        # is set to (4 << 5) so the receiver consumes the right
+        # number of bytes.
+        pad = b"\x00\x00\x00\x00"
+        encoded = ((len(pad) & 0x07FF) << 5) & 0xFFFF
+        ack_frame = (
+            TWI_MAGIC
+            + bytes([byte2, byte3])
+            + bytes([self._twi_sequence & 0xFF])
+            + bytes([ack_num])
+            + bytes([(encoded >> 8) & 0xFF, encoded & 0xFF])
+            + src
+            + dst
+            + pad
+        )
+        logger.info(
+            "[TP] TWI ACK: seq=%d ack_num=%d (=inbound_seq+1) "
+            "byte2=0x%02x byte3=0x%02x src=%s dst=%s",
+            self._twi_sequence, ack_num, byte2, byte3,
+            src.hex(), dst.hex(),
+        )
+        return ack_frame
 
     @staticmethod
     def parse_sp_commands(payload: bytes) -> list[tuple[str, bytes]]:
@@ -530,16 +672,31 @@ class BleTransportProtocol:
         self._twi_flags = meta["flags"]
 
         logger.info(
-            "[TP] TWI: ver=%s, seq=%d, count=%d, flags=0x%02x, "
-            "ctrl=%s, pod=%s, payload=%d bytes",
+            "[TP] TWI: ver=%s seq=%d ack_num=%d msg_type=0x%02x eqos=%d "
+            "is_ack=%s ctrl=%s pod=%s payload=%d bytes",
             meta["version"].hex(),
             meta["sequence"],
-            meta["cmd_count"],
-            meta["flags"],
+            meta["ack_num"],
+            meta["msg_type"],
+            meta["eqos"],
+            meta["is_ack"],
             meta["controller_id"].hex(),
             meta["pod_id"].hex(),
             len(rhp_payload),
         )
+
+        # Reliable-transport ACK: when the inbound frame is sent at
+        # eqos == 1 and is not itself an ACK, emit a matching pod-side
+        # ACK frame BEFORE processing the payload. Without this the
+        # phone's TWI layer times out waiting for an ACK, reports
+        # status: -38 on onCommandDelivered, and never processes any
+        # pod-side reply to the request - see ANALYSIS.md sections
+        # 7.7 and 7.9 for the full live-evidence chain.
+        if meta["eqos"] == 1 and not meta["is_ack"]:
+            ack_frame = self._build_twi_ack(meta)
+            asyncio.get_event_loop().create_task(
+                self._send_app_response(ack_frame)
+            )
 
         # Route by destination pod_id: broadcast (0xFFFFFFFE) means we are
         # still in the SP/SPS pairing path; any other destination means the
