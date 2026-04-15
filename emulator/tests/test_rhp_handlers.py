@@ -128,6 +128,25 @@ class TestTwiGetVersion:
         seq = int.from_bytes(raw[14:18], "big")
         assert seq == 770785
 
+    def test_default_lot_number_location_code_allowed(self):
+        # The v3.1.1 phone app's lot-number validator requires the
+        # 6-bit location code at bits [25..30] of the uint32 lot
+        # number to be in the allow-list {5, 7, 9}. The default
+        # pod lot_number must encode to one of those values so
+        # that the phone accepts the emulator's getPodVersion
+        # response.
+        d, _, _ = _make_handlers()
+        result = d.dispatch("G0.0")
+        raw = bytes.fromhex(result.split("=", 1)[1])
+        lot_uint32 = int.from_bytes(raw[10:14], "big")
+        loc_code = (lot_uint32 >> 25) & 0x3F
+        assert loc_code in {5, 7, 9}, (
+            f"lot_number 0x{lot_uint32:08x} has location code {loc_code}, "
+            f"not in the allow-list {{5, 7, 9}}"
+        )
+        # Family bit (bit 31) should be 0 = 'P' (not 'E')
+        assert (lot_uint32 >> 31) == 0
+
 
 class TestAidPodStatus:
     """Test G11.3 and G12.3 AID Pod Status handlers."""

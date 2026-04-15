@@ -72,7 +72,13 @@ class PodState:
     """
 
     firmware_version: str = "3.1.6"
-    lot_number: str = "L05082541"
+    # The v3.1.1 phone app's lot-number validator requires the
+    # 6-bit location code at bits [25..30] of the uint32 lot
+    # number to be in the allow-list {5, 7, 9}. The previous
+    # default "L05082541" (= 0x004D8DAD) decoded to location
+    # code 0 and failed the check. 167772160 = 0x0A000000 has
+    # location code 5 and family 'P' (bit 31 = 0).
+    lot_number: str = "L167772160"
     sequence_number: int = 770785
     reservoir_units: float = 200.0
     activated: bool = False
