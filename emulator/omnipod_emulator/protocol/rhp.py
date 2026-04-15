@@ -46,6 +46,7 @@ class RhpTypePrefix(enum.Enum):
     DEBUG = "R"
     ALARM = "A"
     VERSION = "V"
+    ENGINEERING = "E"  # observed in v3.1.1 post-auth, e.g. SE255.2=<unix_ts>
 
 
 class RhpErrorCode(enum.IntEnum):
@@ -156,13 +157,19 @@ class RhpResponse:
 
 
 # Regex for parsing RHP text requests
-# Matches: [G|S][L|R|A|V]?<type_no>.<attr_no>[=<payload>]
+# Matches: [G|S][L|R|A|V|E]?<type_no>.<attr_no>[=<payload>]
 # Also matches bare GV (get version)
+#
+# The E (ENGINEERING) prefix was observed in v3.1.1 post-auth traffic
+# as the second activation command: SE255.2=<unix_timestamp>. It is
+# undocumented in the existing RHP spec; treat as the engineering
+# counterpart of the NORMAL attribute namespace for now.
 _RHP_PATTERN = re.compile(
     r"^(?P<action>[GS])"
-    r"(?P<prefix>[LRAV])?"
+    r"(?P<prefix>[LRAVE])?"
     r"(?:(?P<type>\d+)\.(?P<attr>\d+))?"
-    r"(?:=(?P<payload>.+))?$"
+    r"(?:=(?P<payload>.+))?$",
+    re.DOTALL,
 )
 
 
@@ -203,6 +210,7 @@ def parse_rhp_request(text: str) -> RhpRequest:
         "R": RhpTypePrefix.DEBUG,
         "A": RhpTypePrefix.ALARM,
         "V": RhpTypePrefix.VERSION,
+        "E": RhpTypePrefix.ENGINEERING,
     }
     type_prefix = prefix_map.get(prefix_str, RhpTypePrefix.NORMAL)
 

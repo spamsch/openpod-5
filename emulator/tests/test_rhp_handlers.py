@@ -104,11 +104,14 @@ class TestTwiGetVersion:
         uid = int.from_bytes(raw[19:23], "big")
         assert uid == 0xDEADBEEF
 
-    def test_product_id_is_10(self):
+    def test_product_id_is_5(self):
+        # The v3.1.1 phone app validates this byte == 5
+        # ("Valid POD Product Id: 5"). Previously the emulator
+        # returned 0x0A, which v3.1.1 rejects.
         d, _, _ = _make_handlers()
         result = d.dispatch("G0.0")
         raw = bytes.fromhex(result.split("=", 1)[1])
-        assert raw[8] == 0x0A  # product ID 10 = Omnipod 5
+        assert raw[8] == 0x05
 
     def test_byte_18_rssi_gain(self):
         d, _, _ = _make_handlers()

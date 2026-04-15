@@ -68,6 +68,17 @@ class TestParseRhpRequest:
         assert req.attr_no == 2
         assert req.payload == "1711929600"
 
+    def test_set_utc_engineering_prefix(self):
+        # The v3.1.1 phone app sends SE255.2=<unix_ts> as the
+        # second activation command after getPodVersion. The "E"
+        # (engineering) prefix is undocumented but must parse.
+        req = parse_rhp_request("SE255.2=1776283762")
+        assert req.action == RhpAction.SET
+        assert req.type_prefix == RhpTypePrefix.ENGINEERING
+        assert req.type_no == 255
+        assert req.attr_no == 2
+        assert req.payload == "1776283762"
+
     def test_get_alarm(self):
         req = parse_rhp_request("GA1.0")
         assert req.action == RhpAction.GET

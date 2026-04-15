@@ -193,6 +193,12 @@ class RhpHandlers:
 
         # TWI GetVersion (0x07) — binary response as 0.0=<hex>
         d.register_get(0, 0, self._handle_twi_get_version)
+        # The v3.1.1 phone app sends getPodVersion as a batched
+        # "S0.0=<binary>,G0.0" request: the SET half carries a
+        # 14-byte request body, the GET half retrieves the 23-byte
+        # response. Ack the SET so the batch parses without a
+        # NOT_SUPPORTED error.
+        d.register_set(0, 0, self._handle_twi_set_version_request)
 
         # Algorithm (type 3)
         d.register_get(3, 1, self._handle_get_target_bg)
@@ -216,15 +222,20 @@ class RhpHandlers:
         d.register_set(255, 2, self._handle_set_utc)
         d.register_get(255, 2, self._handle_get_utc)
         d.register_get(255, 3, self._handle_get_error_codes)
+        # The v3.1.1 phone app sends SetUtcTime as SE255.2=<unix_ts>
+        # using the undocumented "E" (engineering) prefix. Route it
+        # to the same handler as the NORMAL-prefix variant for now;
+        # the spec difference is not yet understood.
+        d.register_set(255, 2, self._handle_set_utc_engineering, prefix="E")
 
         # Logger (type 0, prefix L)
         d.register_set(0, 4, self._handle_set_logger_enable, prefix="L")
         d.register_get(0, 5, self._handle_get_logger_unread, prefix="L")
 
         # Activation-specific commands (emulator-specific type 1 convention):
-        # TODO: Replace with exact wire-format sequences once captured from
-        # real traffic or further decompilation. These type 1 mappings are
-        # NOT wire-compatible with the real protocol.
+        # TODO: Replace with exact wire-format sequences once captured
+        # from real pod/phone traffic. These type 1 mappings are NOT
+        # wire-compatible with the real protocol.
         d.register_get(1, 6, self._handle_get_pod_status)        # Pod status (text)
         d.register_set(1, 0, self._handle_set_unique_id)       # Set pod UID
         d.register_set(1, 1, self._handle_program_alerts)      # Program alerts
@@ -290,6 +301,29 @@ class RhpHandlers:
         self._activation_state = ActivationState.GOT_VERSION
         logger.info("GV: version=%s, state -> GOT_VERSION", version)
         return RhpResponse.version(version)
+
+    def _handle_twi_set_version_request(self, req: RhpRequest) -> RhpResponse:
+        """
+        S0.0=<14-byte request body> -> ack the getPodVersion request.
+
+        The v3.1.1 phone app sends this as the first half of a
+        batched "S0.0=<binary>,G0.0" command. The request body is
+        14 bytes:
+
+            src(4)=0xFFFFFFFF | op(2)=0x0006 | cmd(2)=0x0704 |
+            dst(4)=0xFFFFFFFF | crc16(2)=0x82B2
+
+        We do not parse the body here — the G0.0 follow-on in the
+        same batch triggers _handle_twi_get_version, which produces
+        the real 23-byte response. This SET handler only needs to
+        ack so the batch parses cleanly.
+        """
+        body_len = len(req.payload) if req.payload else 0
+        logger.info(
+            "S0.0: getPodVersion request body len=%d (ack only; G0.0 returns data)",
+            body_len,
+        )
+        return RhpResponse.success("", 0, 0)
 
     def _handle_twi_get_version(self, _req: RhpRequest) -> RhpResponse:
         """
@@ -357,7 +391,10 @@ class RhpHandlers:
             major,        # BLE major (same as PI for emulator)
             minor,        # BLE minor
             patch,        # BLE interim
-            0x0A,         # product ID (10 = Omnipod 5 profile)
+            0x05,         # product ID. The v3.1.1 phone app validates
+                          # this byte == 5 ("Valid POD Product Id: 5")
+                          # and rejects anything else. Previously 0x0A
+                          # (wrong for v3.1.1).
             pod_state,    # pod state (lower 4 bits)
             lot_number,   # lot number
             seq_number,   # sequence number
@@ -637,6 +674,33 @@ class RhpHandlers:
             self._aid_setup_state = AidSetupState.UTC
         logger.info("S255.2: utc=%d", self._utc_time)
         return RhpResponse.success("", 255, 2)
+
+    def _handle_set_utc_engineering(self, req: RhpRequest) -> RhpResponse:
+        """
+        SE255.2=<epoch> -> Set UTC time, engineering variant.
+
+        Seen in v3.1.1 as the second activation command after
+        getPodVersion. Wire format is pure ASCII with NO wrapper,
+        no length prefix, no CRC:
+
+            "SE255.2=1776283762"
+
+        The "E" (engineering) prefix is undocumented; for now we
+        delegate to the NORMAL-prefix _handle_set_utc since the value
+        semantics appear identical (both carry a Unix-epoch timestamp).
+        The success response uses the "E" prefix to mirror the request.
+        """
+        if req.payload:
+            try:
+                self._utc_time = int(req.payload)
+            except ValueError:
+                return RhpResponse.error(
+                    RhpAction.SET, 255, 2, RhpErrorCode.INVALID_VALUE,
+                )
+        if self._aid_setup_state == AidSetupState.READY:
+            self._aid_setup_state = AidSetupState.UTC
+        logger.info("SE255.2: utc=%d (engineering)", self._utc_time)
+        return RhpResponse.success("E", 255, 2)
 
     def _handle_get_utc(self, _req: RhpRequest) -> RhpResponse:
         """G255.2 -> Get current UTC time."""
