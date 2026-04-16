@@ -1,7 +1,7 @@
 # OpenPod
 
 > ⚠️ **VERY EARLY STAGE — MOST COMPONENTS DO NOT WORK.**
-> This is an exploratory research project. Expect broken builds, incomplete features, failing flows, and protocol layers that have never been exercised against real hardware. Nothing here should be considered functional, reliable, or safe. Do **not** attempt to use this with a real pod.
+> This is an exploratory research project. Expect broken builds, incomplete features, failing flows, and protocol layers that have never been exercised against real hardware. Nothing here should be considered functional, reliable, or safe. Do **not** attempt to use this with a real pod. If you want to help then get into contact. Looking for researchers.
 
 Independent research and interoperability project for the **Omnipod 5** insulin delivery system. Built from the ground up with modern Android development practices — not a fork of the official app.
 
